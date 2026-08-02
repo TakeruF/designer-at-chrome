@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { formatMediaTime } from '../../shared/media-utils';
+import { buildBookmarkReproductionPrompt } from '../../shared/reproduction-prompt';
 import type { BookmarkCategory, DesignBookmark } from '../../shared/types';
+import { localizedPatternName } from '../../shared/ui-pattern-labels';
 import { updateBookmark } from '../../storage/bookmark-storage';
 import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
 import { ExternalIcon } from './Icons';
+import { PromptCopyButton } from './PromptCopyButton';
 import { StyleSections } from './StyleSections';
 import { Accordion, Button, Notice } from './UI';
 import { captureModeLabel, categoryLabel, useI18n } from '../i18n';
@@ -43,6 +46,12 @@ export function BookmarkDetail({
   const [note, setNote] = useState(bookmark.note);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const reproductionPrompt = buildBookmarkReproductionPrompt(bookmark, locale);
+  const localizedName = localizedPatternName(
+    bookmark.uiPattern.name,
+    bookmark.uiPattern.japaneseName,
+    locale,
+  );
 
   const save = async () => {
     if (!title.trim()) {
@@ -102,6 +111,7 @@ export function BookmarkDetail({
         )}
       </div>
       {bookmark.screenshot.clippedToViewport ? <Notice>{t('detail.clipped')}</Notice> : null}
+      <PromptCopyButton prompt={reproductionPrompt} className="detail-prompt-button" />
 
       {editing ? (
         <section className="bookmark-form detail-edit">
@@ -222,7 +232,7 @@ export function BookmarkDetail({
             <div>
               <span>{t('detail.pattern')}</span>
               <strong>{bookmark.uiPattern.name}</strong>
-              <small>{bookmark.uiPattern.japaneseName}</small>
+              {localizedName !== bookmark.uiPattern.name ? <small>{localizedName}</small> : null}
             </div>
             <b>{Math.round(bookmark.uiPattern.confidence * 100)}%</b>
           </div>

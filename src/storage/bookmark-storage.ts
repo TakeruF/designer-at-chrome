@@ -5,7 +5,10 @@ const BOOKMARKS_KEY = 'uiLens.bookmarks.v1';
 const UI_STATE_KEY = 'uiLens.uiState.v1';
 
 export function localeFromLanguage(language: string): SupportedLocale {
-  return language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
+  const normalized = language.toLowerCase();
+  if (normalized.startsWith('ja')) return 'ja';
+  if (normalized.startsWith('zh')) return 'zh';
+  return 'en';
 }
 
 function defaultUIState(): UIState {
@@ -62,13 +65,16 @@ export async function getUIState(): Promise<UIState> {
   const raw: unknown = result[UI_STATE_KEY];
   if (!raw || typeof raw !== 'object') return defaultUIState();
   const value = raw as Partial<UIState>;
-  const activeTab = value.activeTab === 'bookmarks' ? 'bookmarks' : 'inspect';
+  const activeTab =
+    value.activeTab === 'bookmarks' || value.activeTab === 'settings' ? value.activeTab : 'inspect';
   const themes: ThemePreference[] = ['system', 'light', 'dark'];
   const theme = themes.includes(value.theme as ThemePreference)
     ? (value.theme as ThemePreference)
     : 'system';
   const locale: SupportedLocale =
-    value.locale === 'ja' || value.locale === 'en' ? value.locale : defaultUIState().locale;
+    value.locale === 'ja' || value.locale === 'en' || value.locale === 'zh'
+      ? value.locale
+      : defaultUIState().locale;
   return { activeTab, theme, locale };
 }
 

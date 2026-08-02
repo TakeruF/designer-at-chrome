@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMediaTime } from '../../shared/media-utils';
-import { sendRuntimeMessage } from '../../shared/messages';
+import { ExtensionRuntimeError, sendRuntimeMessage } from '../../shared/messages';
 import type {
   BookmarkCategory,
   BookmarkDraft,
@@ -15,6 +15,7 @@ import type {
 import { addBookmark } from '../../storage/bookmark-storage';
 import { deleteScreenshot } from '../../storage/screenshot-db';
 import { Button, Notice } from './UI';
+import { isCapturePermissionError, requestCaptureAccess } from '../host-permissions';
 import { categoryLabel, useI18n } from '../i18n';
 
 const categories: BookmarkCategory[] = [
@@ -76,6 +77,7 @@ export function SaveBookmarkForm({
   const pendingIdRef = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsCapturePermission, setNeedsCapturePermission] = useState(false);
   const isVideo = selection.media !== null;
 
   useEffect(() => {
@@ -224,7 +226,34 @@ export function SaveBookmarkForm({
       }
       await persistBookmark(id, result);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ブックマークを保存できませんでした。');
+      if (
+        (caught instanceof ExtensionRuntimeError &&
+          caught.code === 'CAPTURE_PERMISSION_REQUIRED') ||
+        isCapturePermissionError(caught)
+      ) {
+        setNeedsCapturePermission(true);
+        setError(null);
+      } else {
+        setError(caught instanceof Error ? caught.message : 'ブックマークを保存できませんでした。');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const grantCapturePermissionAndSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const granted = await requestCaptureAccess();
+      if (!granted) {
+        setError(t('capturePermission.denied'));
+        return;
+      }
+      setNeedsCapturePermission(false);
+      await save();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('capturePermission.denied'));
     } finally {
       setSaving(false);
     }
@@ -441,8 +470,32 @@ export function SaveBookmarkForm({
           rows={3}
         />
       </label>
+      {needsCapturePermission ? (
+        <div className="capture-permission" role="alert">
+          <strong>{t('capturePermission.title')}</strong>
+          <p>{t('capturePermission.description')}</p>
+          <div>
+            <Button
+              variant="primary"
+              disabled={saving}
+              onClick={() => void grantCapturePermissionAndSave()}
+            >
+              {saving ? t('save.capture') : t('capturePermission.action')}
+            </Button>
+            <Button
+              disabled={saving}
+              onClick={() => {
+                setNeedsCapturePermission(false);
+                setError(t('capturePermission.denied'));
+              }}
+            >
+              {t('capturePermission.notNow')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
-      {!pendingProtected ? (
+      {!pendingProtected && !needsCapturePermission ? (
         <div className="form-actions">
           <Button onClick={() => void cancelForm()} disabled={saving}>
             {t('common.cancel')}

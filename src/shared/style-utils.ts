@@ -1,4 +1,5 @@
 import { toColorValue } from './color-utils';
+import { collectFontFamilies } from './font-utils';
 import type { BoxEdges, ComputedStyleInfo } from './types';
 
 const edges = (style: CSSStyleDeclaration, prefix: 'margin' | 'padding'): BoxEdges => ({
@@ -12,6 +13,7 @@ export function extractComputedStyle(element: Element): ComputedStyleInfo {
   const style = getComputedStyle(element);
   return {
     typography: {
+      fontFamilies: collectFontFamilies(element),
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
       fontWeight: style.fontWeight,

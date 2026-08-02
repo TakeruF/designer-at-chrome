@@ -17,9 +17,21 @@ export class InspectorOverlay {
       pointerEvents: 'none',
     });
     const shadow = this.host.attachShadow({ mode: 'closed' });
-    this.hoverBox = this.makeBox('rgba(37, 99, 235, 0.14)', '#2563EB', '1px dashed');
-    this.selectedBox = this.makeBox('rgba(37, 99, 235, 0.08)', '#2563EB', '2px solid');
-    this.captureBox = this.makeBox('rgba(37, 99, 235, 0.04)', '#2563EB', '2px dashed');
+    this.hoverBox = this.makeBox(
+      'color-mix(in srgb, AccentColor 14%, transparent)',
+      'AccentColor',
+      '1px dashed',
+    );
+    this.selectedBox = this.makeBox(
+      'color-mix(in srgb, AccentColor 8%, transparent)',
+      'AccentColor',
+      '2px solid',
+    );
+    this.captureBox = this.makeBox(
+      'color-mix(in srgb, AccentColor 4%, transparent)',
+      'AccentColor',
+      '2px dashed',
+    );
     shadow.append(this.hoverBox, this.selectedBox, this.captureBox);
     document.documentElement.append(this.host);
   }

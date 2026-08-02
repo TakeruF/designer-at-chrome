@@ -56,6 +56,12 @@ async function handleMessage(message: ExtensionMessage): Promise<MessageResponse
     return { ok: true, data: undefined };
   }
   try {
+    if (message.type === 'CLEAR_SELECTION' && message.tabId !== undefined) {
+      const response: MessageResponse<void> = await chrome.tabs.sendMessage(message.tabId, {
+        type: 'CLEAR_SELECTION',
+      } satisfies ExtensionMessage);
+      return response;
+    }
     if (message.type === 'CAPTURE_AND_STORE') {
       const tab = await activeTab();
       await ensureInspector(tab.id as number);
@@ -77,6 +83,18 @@ async function handleMessage(message: ExtensionMessage): Promise<MessageResponse
         'This site needs permission before UI Lens can inspect it.',
       );
     }
+    if (
+      message.type === 'CAPTURE_AND_STORE' &&
+      /<all_urls>|activeTab.*permission is required/i.test(messageText)
+    ) {
+      return error(
+        'CAPTURE_PERMISSION_REQUIRED',
+        'Chrome needs additional permission to capture this tab after navigation.',
+      );
+    }
+    if (message.type === 'CAPTURE_AND_STORE') {
+      return error('CAPTURE_FAILED', messageText);
+    }
     const restricted = messageText.includes('このページ');
     return error(restricted ? 'RESTRICTED_PAGE' : 'UNKNOWN', messageText);
   }
@@ -87,6 +105,27 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return undefined;
   void handleMessage(message).then(sendResponse);
   return true;
+});
+
+// Content scripts remain alive during SPA navigation. Clear their fixed
+// outline and selection history whenever Chrome reports a URL change, even if
+// the Side Panel is currently closed.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  void chrome.tabs
+    .sendMessage(tabId, { type: 'CLEAR_SELECTION' } satisfies ExtensionMessage)
+    .catch(() => {
+      // Expected when the old document has already unloaded or scripts cannot
+      // run on the destination page.
+    });
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void chrome.tabs
+    .sendMessage(tabId, { type: 'CLEAR_SELECTION' } satisfies ExtensionMessage)
+    .catch(() => {
+      // The inspector may not have been injected into this tab yet.
+    });
 });
 
 void chrome.sidePanel

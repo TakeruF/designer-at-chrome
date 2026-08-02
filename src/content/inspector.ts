@@ -97,6 +97,17 @@ class InspectorController {
     this.overlay.hideCapture();
   }
 
+  private async clearSelection(): Promise<void> {
+    this.stopSelection();
+    this.selected = null;
+    this.childHistory = [];
+    this.clearCaptureTarget();
+    this.overlay.hideSelected();
+    // Capture may have temporarily paused a video. Restore its original state
+    // before discarding the selection and capture bookkeeping.
+    await this.restoreAfterCapture();
+  }
+
   private setSelected(element: Element): SelectedElementInfo {
     this.selected = element;
     this.clearCaptureTarget();
@@ -279,6 +290,21 @@ class InspectorController {
     if (message.type === 'GET_SELECTION') {
       sendResponse({ ok: true, data: this.selected ? analyzeElement(this.selected) : null });
       return false;
+    }
+    if (message.type === 'CLEAR_SELECTION') {
+      void this.clearSelection()
+        .then(() => sendResponse({ ok: true, data: undefined }))
+        .catch((caught: unknown) =>
+          sendResponse({
+            ok: false,
+            error: {
+              code: 'UNKNOWN',
+              message:
+                caught instanceof Error ? caught.message : '選択状態を解除できませんでした。',
+            },
+          }),
+        );
+      return true;
     }
     if (message.type === 'SET_CAPTURE_TARGET') {
       const preview = this.setCaptureTarget(message.captureMode);

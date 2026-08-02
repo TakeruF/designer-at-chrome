@@ -1,7 +1,9 @@
 import { formatMediaTime } from '../../shared/media-utils';
+import { buildBookmarkReproductionPrompt } from '../../shared/reproduction-prompt';
 import type { DesignBookmark } from '../../shared/types';
 import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
 import { ExternalIcon, VideoIcon } from './Icons';
+import { PromptCopyButton } from './PromptCopyButton';
 import { Button } from './UI';
 import { categoryLabel, useI18n } from '../i18n';
 
@@ -34,6 +36,7 @@ export function BookmarkCard({
 }) {
   const { locale, t } = useI18n();
   const screenshot = useScreenshotUrl(bookmark.screenshot.screenshotId, 'thumbnail');
+  const reproductionPrompt = buildBookmarkReproductionPrompt(bookmark, locale);
   return (
     <article className="bookmark-card">
       <button
@@ -64,7 +67,10 @@ export function BookmarkCard({
         <div className="bookmark-card__meta">
           <span>{categoryLabel(bookmark.category, locale)}</span>
           <time dateTime={bookmark.createdAt}>
-            {dateLabel(bookmark.createdAt, locale === 'ja' ? 'ja-JP' : 'en-US')}
+            {dateLabel(
+              bookmark.createdAt,
+              locale === 'ja' ? 'ja-JP' : locale === 'zh' ? 'zh-CN' : 'en-US',
+            )}
           </time>
         </div>
         <button className="bookmark-card__title" onClick={onView}>
@@ -89,6 +95,7 @@ export function BookmarkCard({
         <div className="bookmark-card__actions">
           <Button onClick={onView}>{t('card.details')}</Button>
           <Button onClick={onEdit}>{t('card.edit')}</Button>
+          <PromptCopyButton prompt={reproductionPrompt} short />
           <Button
             variant="icon"
             aria-label={t('card.open')}

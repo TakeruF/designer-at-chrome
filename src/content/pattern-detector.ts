@@ -8,6 +8,8 @@ export interface PatternFeatures {
   classText: string;
   ariaLabel: string;
   ariaHasPopup: boolean;
+  ariaExpanded: boolean;
+  controlsPopup: boolean;
   text: string;
   top: number;
   left: number;
@@ -22,6 +24,7 @@ export interface PatternFeatures {
   inputCount: number;
   hasLogoLikeImage: boolean;
   hasIconChild: boolean;
+  hasChevronChild: boolean;
   hasFilledBackground: boolean;
   display: string;
   position: string;
@@ -90,6 +93,9 @@ const englishReasons: Record<string, string> = {
   画面端にある縦長の補助領域である: 'A tall supporting area at the screen edge',
   ポップアップメニューを開く属性または名称を持つ:
     'Has attributes or naming associated with a popup menu',
+  アイコン主体でコンパクトな形状である: 'Has a compact, icon-led shape',
+  ポップアップを示すARIA属性を持つ: 'Uses ARIA attributes that identify a popup',
+  ドロップダウンを示す名称または矢印を持つ: 'Has dropdown naming or a dropdown indicator',
   ボタン内が主にアイコンで構成されている: 'The button consists mainly of an icon',
   button要素またはbuttonロールを持つ: 'Uses a button element or button role',
   主要操作を示す名前やクラスを持つ: 'Its name or class suggests a primary action',
@@ -220,10 +226,42 @@ export function detectPatternFromFeatures(features: PatternFeatures): UIPatternR
   }
 
   const isButton = features.tag === 'button' || features.role === 'button';
-  if (isButton && (features.ariaHasPopup || hasToken(features, /dropdown|menu|select/))) {
-    add('Dropdown Button', 0.94, ['ポップアップメニューを開く属性または名称を持つ']);
-  } else if (isButton && features.hasIconChild && features.text.length <= 2) {
-    add('Icon Button', 0.92, ['ボタン内が主にアイコンで構成されている']);
+  const normalizedButtonText = features.text.replace(/\s+/g, ' ').trim();
+  const hamburgerNamed = hasToken(
+    features,
+    /(^|[\s_-])(hamburger|menu[\s_-]*icon|menu[\s_-]*toggle|nav[\s_-]*toggle)([\s_-]|$)/,
+  );
+  const compactIconButton =
+    isButton &&
+    (features.hasIconChild || hamburgerNamed) &&
+    (normalizedButtonText.length <= 1 ||
+      (features.width <= 64 &&
+        features.height <= 64 &&
+        features.width >= features.height * 0.55 &&
+        features.width <= features.height * 1.8));
+  const dropdownNamed = hasToken(
+    features,
+    /(^|[\s_-])(dropdown|popover)([\s_-]|$)|(menu|select)[\s_-]*(button|trigger|toggle)/,
+  );
+  const popupSemantics = features.ariaHasPopup || features.controlsPopup;
+  const dropdownButton =
+    isButton &&
+    !compactIconButton &&
+    ((popupSemantics && normalizedButtonText.length > 0) ||
+      (dropdownNamed && (popupSemantics || features.ariaExpanded || features.hasChevronChild)) ||
+      (features.hasChevronChild && popupSemantics));
+
+  if (compactIconButton) {
+    add('Icon Button', 0.94, [
+      'ボタン内が主にアイコンで構成されている',
+      'アイコン主体でコンパクトな形状である',
+    ]);
+  } else if (dropdownButton) {
+    const reasons = ['ポップアップメニューを開く属性または名称を持つ'];
+    if (popupSemantics) reasons.push('ポップアップを示すARIA属性を持つ');
+    if (dropdownNamed || features.hasChevronChild)
+      reasons.push('ドロップダウンを示す名称または矢印を持つ');
+    add('Dropdown Button', popupSemantics ? 0.92 : 0.78, reasons);
   } else if (isButton) {
     const namedPrimary = hasToken(features, /primary|cta|submit|confirm|buy|start/);
     const primary = namedPrimary || features.hasFilledBackground;
@@ -258,7 +296,7 @@ export function detectPatternFromFeatures(features: PatternFeatures): UIPatternR
   if (features.role === 'tablist' || hasToken(features, /tabs?|tablist/)) {
     add('Tabs', 0.9, ['tablistロールまたはタブを示す名称を持つ']);
   }
-  if (hasToken(features, /accordion/) || features.ariaHasPopup) {
+  if (hasToken(features, /accordion/) || (features.ariaExpanded && !features.ariaHasPopup)) {
     add('Accordion', 0.62, ['開閉式UIを示す属性または名称を持つ']);
   }
 
@@ -332,17 +370,39 @@ export function detectUIPattern(element: Element): UIPatternResult {
     ? background.r * 0.2126 + background.g * 0.7152 + background.b * 0.0722
     : 255;
   const label = element.getAttribute('aria-label') ?? '';
+  const ariaHasPopupValue = element.getAttribute('aria-haspopup')?.toLowerCase() ?? '';
+  const controlledElements = (element.getAttribute('aria-controls') ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((id) => {
+      const controlled = document.getElementById(id);
+      return controlled ? [controlled] : [];
+    });
   const classes = [...element.classList].join(' ');
   const images = [...element.querySelectorAll('img')];
   const input = element instanceof HTMLInputElement ? element : null;
+  const renderedText = element instanceof HTMLElement ? element.innerText : null;
+  const isCompactLabeledControl =
+    Boolean(label) && rect.width <= 64 && rect.height <= 64 && element.children.length > 0;
   return detectPatternFromFeatures({
     tag: element.tagName.toLowerCase(),
     role: element.getAttribute('role')?.toLowerCase() ?? '',
     type: input?.type.toLowerCase() ?? '',
     classText: classes,
     ariaLabel: label,
-    ariaHasPopup: element.hasAttribute('aria-haspopup'),
-    text: (element.textContent ?? '').trim(),
+    ariaHasPopup: ['true', 'menu', 'listbox', 'tree', 'grid'].includes(ariaHasPopupValue),
+    ariaExpanded: element.hasAttribute('aria-expanded'),
+    controlsPopup: controlledElements.some((controlled) => {
+      const role = controlled.getAttribute('role')?.toLowerCase();
+      return (
+        role === 'menu' ||
+        role === 'listbox' ||
+        role === 'tree' ||
+        role === 'grid' ||
+        /dropdown|popover|menu|listbox/i.test(controlled.className)
+      );
+    }),
+    text: (renderedText ?? element.textContent ?? '').trim(),
     top: rect.top,
     left: rect.left,
     width: rect.width,
@@ -355,7 +415,13 @@ export function detectUIPattern(element: Element): UIPatternResult {
     imageCount: images.length,
     inputCount: element.querySelectorAll('input,textarea,select').length,
     hasLogoLikeImage: images.some((image) => /logo/i.test(`${image.alt} ${image.className}`)),
-    hasIconChild: Boolean(element.querySelector('svg,img,[class*="icon" i]')),
+    hasIconChild:
+      Boolean(element.querySelector('svg,img,canvas,[class*="icon" i]')) || isCompactLabeledControl,
+    hasChevronChild: Boolean(
+      element.querySelector(
+        '[class*="chevron" i],[class*="caret" i],[class*="arrow-down" i],[data-icon*="chevron" i],[data-icon*="caret" i]',
+      ),
+    ),
     hasFilledBackground: Boolean(
       background && background.a > 0.05 && (backgroundRange > 24 || backgroundLuminance < 130),
     ),

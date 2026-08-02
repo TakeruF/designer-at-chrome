@@ -74,6 +74,12 @@ function isStyle(value: unknown): value is ComputedStyleInfo {
       'letterSpacing',
       'textAlign',
     ]) &&
+    (typography.fontFamilies === undefined ||
+      (Array.isArray(typography.fontFamilies) &&
+        typography.fontFamilies.length <= 100 &&
+        typography.fontFamilies.every(
+          (family) => typeof family === 'string' && family.length <= 200,
+        ))) &&
     isColor(typography.color) &&
     isRecord(colors) &&
     isColor(colors.text) &&

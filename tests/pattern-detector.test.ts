@@ -8,6 +8,8 @@ const base: PatternFeatures = {
   classText: '',
   ariaLabel: '',
   ariaHasPopup: false,
+  ariaExpanded: false,
+  controlsPopup: false,
   text: '',
   top: 300,
   left: 100,
@@ -22,6 +24,7 @@ const base: PatternFeatures = {
   inputCount: 0,
   hasLogoLikeImage: false,
   hasIconChild: false,
+  hasChevronChild: false,
   hasFilledBackground: false,
   display: 'block',
   position: 'static',
@@ -49,6 +52,84 @@ describe('rule-based UI pattern detector', () => {
       ariaLabel: 'Close',
     });
     expect(result.name).toBe('Icon Button');
+  });
+
+  it('keeps a compact hamburger menu trigger as an icon button', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      ariaLabel: 'Open menu',
+      ariaExpanded: true,
+      controlsPopup: true,
+      hasIconChild: true,
+      width: 40,
+      height: 40,
+    });
+    expect(result.name).toBe('Icon Button');
+    expect(result.confidence).toBeGreaterThan(0.9);
+  });
+
+  it('recognizes a hamburger-named button without an SVG as an icon button', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      classText: 'site-header__hamburger',
+      ariaLabel: 'Open navigation',
+      ariaExpanded: true,
+      controlsPopup: true,
+      width: 44,
+      height: 44,
+    });
+    expect(result.name).toBe('Icon Button');
+  });
+
+  it('does not treat menu wording alone as a dropdown', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      classText: 'menu-item-button',
+      text: 'Settings',
+    });
+    expect(result.name).toBe('Secondary Button');
+  });
+
+  it('does not treat a select-related call to action as a dropdown', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      ariaLabel: 'Select plan',
+      text: 'Select plan',
+      hasFilledBackground: true,
+    });
+    expect(result.name).toBe('Primary Button');
+  });
+
+  it('recognizes a labeled popup trigger as a dropdown button', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      text: 'Account',
+      ariaHasPopup: true,
+      ariaExpanded: true,
+      hasChevronChild: true,
+      width: 120,
+      height: 40,
+    });
+    expect(result.name).toBe('Dropdown Button');
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('keeps a short labeled icon-and-text button out of the icon-only category', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'button',
+      text: 'Go',
+      hasIconChild: true,
+      width: 88,
+      height: 40,
+      hasFilledBackground: true,
+    });
+    expect(result.name).toBe('Primary Button');
   });
 
   it('recognizes a visually emphasized filled button as primary', () => {

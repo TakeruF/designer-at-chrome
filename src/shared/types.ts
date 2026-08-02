@@ -34,6 +34,9 @@ export interface BoxEdges {
 }
 
 export interface TypographyStyle {
+  /** Preferred fonts found on text-bearing elements inside the selected range. */
+  fontFamilies?: string[];
+  /** Raw computed font stack of the selected root, retained for compatibility and export. */
   fontFamily: string;
   fontSize: string;
   fontWeight: string;
@@ -216,6 +219,7 @@ export interface ExtensionError {
   code:
     | 'RESTRICTED_PAGE'
     | 'HOST_PERMISSION_REQUIRED'
+    | 'CAPTURE_PERMISSION_REQUIRED'
     | 'NO_ACTIVE_TAB'
     | 'NO_SELECTION'
     | 'CAPTURE_FAILED'
@@ -229,6 +233,7 @@ export type ExtensionMessage =
   | { type: 'START_SELECTION' }
   | { type: 'RESELECT_ELEMENT' }
   | { type: 'MOVE_SELECTION'; direction: 'parent' | 'child' }
+  | { type: 'CLEAR_SELECTION'; tabId?: number }
   | { type: 'GET_SELECTION' }
   | { type: 'SET_CAPTURE_TARGET'; captureMode: VideoCaptureMode }
   | { type: 'MOVE_CAPTURE_TARGET'; direction: 'parent' | 'child' }
@@ -249,10 +254,10 @@ export interface BookmarkDraft {
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';
-export type SupportedLocale = 'ja' | 'en';
+export type SupportedLocale = 'ja' | 'en' | 'zh';
 
 export interface UIState {
-  activeTab: 'inspect' | 'bookmarks';
+  activeTab: 'inspect' | 'bookmarks' | 'settings';
   theme: ThemePreference;
   locale: SupportedLocale;
 }

@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { ExtensionRuntimeError, isExtensionMessage, sendRuntimeMessage } from '../shared/messages';
-import type {
-  ExtensionError,
-  SelectedElementInfo,
-  ThemePreference,
-  UIState,
-} from '../shared/types';
+import type { ExtensionError, SelectedElementInfo, UIState } from '../shared/types';
 import { getUIState, localeFromLanguage, setUIState } from '../storage/bookmark-storage';
-import { BookmarkIcon, InspectIcon, ThemeIcon } from './components/Icons';
+import { BookmarkIcon, InspectIcon, SettingsIcon } from './components/Icons';
 import { Button } from './components/UI';
 import { I18nProvider, useI18n } from './i18n';
+import { InspectionRequestGate, inspectionActionForTabUpdate } from './inspection-context';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { InspectPage } from './pages/InspectPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-const themeOrder: ThemePreference[] = ['system', 'light', 'dark'];
 const initialState: UIState = {
   activeTab: 'inspect',
   theme: 'system',
@@ -34,20 +37,49 @@ export function App() {
   const [hydrated, setHydrated] = useState(false);
   const [selection, setSelection] = useState<SelectedElementInfo | null>(null);
   const [inspectionError, setInspectionError] = useState<ExtensionError | null>(null);
+  const [inspectionContextRevision, setInspectionContextRevision] = useState(0);
   const [bookmarksVersion, setBookmarksVersion] = useState(0);
+  const requestGate = useRef(new InspectionRequestGate());
+
+  const resetInspectionContext = useCallback(() => {
+    requestGate.current.invalidate();
+    setSelection(null);
+    setInspectionError(null);
+    // Remount InspectPage so its local action errors cannot leak into another tab.
+    setInspectionContextRevision((value) => value + 1);
+  }, []);
 
   const refreshSelection = useCallback(async () => {
+    const requestVersion = requestGate.current.begin();
     try {
       const current = await sendRuntimeMessage<SelectedElementInfo | null>({
         type: 'GET_SELECTION',
       });
+      if (!requestGate.current.isCurrent(requestVersion)) return;
       setSelection(current);
       setInspectionError(null);
     } catch (caught) {
+      if (!requestGate.current.isCurrent(requestVersion)) return;
       setSelection(null);
       setInspectionError(extensionError(caught));
     }
   }, []);
+
+  const activateTabContext = useCallback(
+    async (tabId: number) => {
+      resetInspectionContext();
+      const transitionVersion = requestGate.current.begin();
+      try {
+        await sendRuntimeMessage<void>({ type: 'CLEAR_SELECTION', tabId });
+      } catch {
+        // A newly activated tab may not have an inspector yet. The refresh
+        // below will inject it or surface the appropriate restricted-page state.
+      }
+      if (!requestGate.current.isCurrent(transitionVersion)) return;
+      await refreshSelection();
+    },
+    [refreshSelection, resetInspectionContext],
+  );
 
   useEffect(() => {
     let active = true;
@@ -65,19 +97,27 @@ export function App() {
   }, [refreshSelection]);
 
   useEffect(() => {
-    const messageListener = (message: unknown) => {
-      if (isExtensionMessage(message) && message.type === 'ELEMENT_SELECTED') {
+    const messageListener = (message: unknown, sender: chrome.runtime.MessageSender) => {
+      if (
+        isExtensionMessage(message) &&
+        message.type === 'ELEMENT_SELECTED' &&
+        sender.tab?.active !== false
+      ) {
+        requestGate.current.invalidate();
         setSelection(message.payload);
         setInspectionError(null);
       }
     };
-    const tabActivatedListener = () => void refreshSelection();
+    const tabActivatedListener = ({ tabId }: chrome.tabs.TabActiveInfo) =>
+      void activateTabContext(tabId);
     const tabUpdatedListener = (
       _tabId: number,
       changeInfo: chrome.tabs.TabChangeInfo,
       tab: chrome.tabs.Tab,
     ) => {
-      if (changeInfo.url && tab.active) void refreshSelection();
+      const action = inspectionActionForTabUpdate(changeInfo, Boolean(tab.active));
+      if (action === 'reset') resetInspectionContext();
+      if (action === 'refresh') void refreshSelection();
     };
     chrome.runtime.onMessage.addListener(messageListener);
     chrome.tabs.onActivated.addListener(tabActivatedListener);
@@ -87,12 +127,12 @@ export function App() {
       chrome.tabs.onActivated.removeListener(tabActivatedListener);
       chrome.tabs.onUpdated.removeListener(tabUpdatedListener);
     };
-  }, [refreshSelection]);
+  }, [activateTabContext, refreshSelection, resetInspectionContext]);
 
   useEffect(() => {
     if (uiState.theme === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = uiState.theme;
-    document.documentElement.lang = uiState.locale;
+    document.documentElement.lang = uiState.locale === 'zh' ? 'zh-CN' : uiState.locale;
     if (hydrated) {
       void setUIState(uiState).catch((caught: unknown) =>
         console.error('Failed to persist UI state.', caught),
@@ -106,6 +146,7 @@ export function App() {
         uiState={uiState}
         selection={selection}
         inspectionError={inspectionError}
+        inspectionContextRevision={inspectionContextRevision}
         bookmarksVersion={bookmarksVersion}
         onState={setState}
         onSelection={setSelection}
@@ -124,6 +165,7 @@ function AppShell({
   uiState,
   selection,
   inspectionError,
+  inspectionContextRevision,
   bookmarksVersion,
   onState,
   onSelection,
@@ -134,6 +176,7 @@ function AppShell({
   uiState: UIState;
   selection: SelectedElementInfo | null;
   inspectionError: ExtensionError | null;
+  inspectionContextRevision: number;
   bookmarksVersion: number;
   onState: Dispatch<SetStateAction<UIState>>;
   onSelection: (selection: SelectedElementInfo) => void;
@@ -144,12 +187,6 @@ function AppShell({
   const { t } = useI18n();
   const selectTab = (activeTab: UIState['activeTab']) =>
     onState((state) => ({ ...state, activeTab }));
-  const cycleTheme = () =>
-    onState((state) => {
-      const index = themeOrder.indexOf(state.theme);
-      return { ...state, theme: themeOrder[(index + 1) % themeOrder.length] };
-    });
-
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -165,22 +202,13 @@ function AppShell({
         <div className="header-actions">
           <Button
             variant="icon"
-            className="language-button"
-            aria-label={t('app.language')}
-            title={t('app.language')}
-            onClick={() =>
-              onState((state) => ({ ...state, locale: state.locale === 'ja' ? 'en' : 'ja' }))
-            }
+            className={uiState.activeTab === 'settings' ? 'is-active' : ''}
+            aria-label={t('app.settings')}
+            title={t('app.settings')}
+            aria-pressed={uiState.activeTab === 'settings'}
+            onClick={() => selectTab('settings')}
           >
-            {uiState.locale === 'ja' ? 'EN' : '日'}
-          </Button>
-          <Button
-            variant="icon"
-            aria-label={t('app.theme', { theme: uiState.theme })}
-            title={t('app.theme', { theme: uiState.theme })}
-            onClick={cycleTheme}
-          >
-            <ThemeIcon />
+            <SettingsIcon />
           </Button>
         </div>
       </header>
@@ -203,6 +231,7 @@ function AppShell({
       <main>
         {uiState.activeTab === 'inspect' ? (
           <InspectPage
+            key={inspectionContextRevision}
             selection={selection}
             error={inspectionError}
             onSelection={onSelection}
@@ -210,8 +239,15 @@ function AppShell({
             onPermissionGranted={onRefreshSelection}
             onSaved={onSaved}
           />
-        ) : (
+        ) : uiState.activeTab === 'bookmarks' ? (
           <BookmarksPage refreshToken={bookmarksVersion} />
+        ) : (
+          <SettingsPage
+            locale={uiState.locale}
+            theme={uiState.theme}
+            onLocale={(locale) => onState((state) => ({ ...state, locale }))}
+            onTheme={(theme) => onState((state) => ({ ...state, theme }))}
+          />
         )}
       </main>
     </div>

@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "120",
   "permissions": ["sidePanel", "storage", "activeTab", "scripting", "tabs"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "optional_host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },

@@ -2,7 +2,7 @@ import type { SupportedLocale } from './types';
 
 const glossary: Record<SupportedLocale, Record<string, string>> = {
   ja: {
-    'font-family': '文字の書体です。先頭から利用可能なフォントが選ばれます。',
+    'font-family': '選択範囲内で文字を表示している要素の優先フォントです。',
     'font-size': '文字の大きさです。',
     'font-weight': '文字の太さです。400が標準、700が太字の目安です。',
     'line-height': '行と行の間隔を含む、1行分の高さです。',
@@ -28,7 +28,7 @@ const glossary: Record<SupportedLocale, Record<string, string>> = {
     'z-index': '重なり順です。大きい値ほど手前に表示されます。',
   },
   en: {
-    'font-family': 'The typeface stack. The browser uses the first available font.',
+    'font-family': 'Preferred fonts on text-bearing elements inside the selection.',
     'font-size': 'The rendered size of the text.',
     'font-weight': 'The thickness of the text; 400 is regular and 700 is typically bold.',
     'line-height': 'The height of each line, including space between lines.',
@@ -53,29 +53,63 @@ const glossary: Record<SupportedLocale, Record<string, string>> = {
     overflow: 'What happens when content extends beyond the element.',
     'z-index': 'The stacking order; larger values usually appear in front.',
   },
+  zh: {
+    'font-family': '所选范围内用于显示文字的元素所指定的首选字体。',
+    'font-size': '文字的显示大小。',
+    'font-weight': '文字的粗细；400通常为常规，700通常为粗体。',
+    'line-height': '每行的高度，包括行与行之间的间距。',
+    'letter-spacing': '字符之间的间距。',
+    'text-align': '文字在每一行中的对齐方式。',
+    color: '用于显示文字的颜色。',
+    'background-color': '绘制在元素背后的颜色。',
+    'border-color': '元素边框使用的颜色。',
+    margin: '元素外侧的间距。',
+    padding: '元素边缘与内容之间的内侧间距。',
+    gap: '按行或列排列的子元素之间的间距。',
+    border: '元素边界的宽度、样式和颜色。',
+    'border-radius': '元素圆角的大小。',
+    'box-shadow': '绘制在元素周围的阴影。',
+    opacity: '整个元素的透明度；1为不透明，0为完全透明。',
+    display: '元素及其子元素所使用的布局模式。',
+    position: '元素在正常文档流中或相对视口的定位方式。',
+    'flex-direction': 'Flexbox中子元素的排列方向。',
+    'justify-content': '子元素沿主轴的分布方式。',
+    'align-items': '子元素沿交叉轴的对齐方式。',
+    'grid-template-columns': '网格布局中的列数和列宽。',
+    overflow: '内容超出元素区域时的处理方式。',
+    'z-index': '元素的层叠顺序；数值越大通常越靠前。',
+  },
 };
 
 export function explainProperty(name: string, value = '', locale: SupportedLocale = 'ja'): string {
-  if (name === 'display' && value === 'flex')
-    return locale === 'ja'
-      ? '子要素をFlexboxで配置しています。'
-      : 'Children are arranged with Flexbox.';
-  if (name === 'display' && value === 'grid')
-    return locale === 'ja'
-      ? '子要素を行と列のGridで配置しています。'
-      : 'Children are arranged in grid rows and columns.';
-  if (name === 'position' && value === 'sticky')
-    return locale === 'ja'
-      ? 'スクロール中、指定位置に達するとその位置に留まる要素です。'
-      : 'The element stays at a specified position while scrolling.';
-  if (name === 'position' && value === 'fixed')
-    return locale === 'ja'
-      ? 'viewportを基準に固定され、スクロールしても同じ位置に表示されます。'
-      : 'The element stays fixed to the viewport while scrolling.';
+  const specialized: Record<SupportedLocale, Record<string, string>> = {
+    ja: {
+      'display:flex': '子要素をFlexboxで配置しています。',
+      'display:grid': '子要素を行と列のGridで配置しています。',
+      'position:sticky': 'スクロール中、指定位置に達するとその位置に留まる要素です。',
+      'position:fixed': 'viewportを基準に固定され、スクロールしても同じ位置に表示されます。',
+    },
+    en: {
+      'display:flex': 'Children are arranged with Flexbox.',
+      'display:grid': 'Children are arranged in grid rows and columns.',
+      'position:sticky': 'The element stays at a specified position while scrolling.',
+      'position:fixed': 'The element stays fixed to the viewport while scrolling.',
+    },
+    zh: {
+      'display:flex': '子元素使用Flexbox排列。',
+      'display:grid': '子元素按网格的行和列排列。',
+      'position:sticky': '滚动到指定位置后，元素会停留在该位置。',
+      'position:fixed': '元素相对视口固定，滚动时仍显示在同一位置。',
+    },
+  };
+  const explanation = specialized[locale][`${name}:${value}`];
+  if (explanation) return explanation;
   return (
     glossary[locale][name] ??
-    (locale === 'ja'
-      ? 'ブラウザが最終的に適用したCSSの値です。'
-      : 'The final computed CSS value used by the browser.')
+    {
+      ja: 'ブラウザが最終的に適用したCSSの値です。',
+      en: 'The final computed CSS value used by the browser.',
+      zh: '浏览器最终应用的CSS计算值。',
+    }[locale]
   );
 }

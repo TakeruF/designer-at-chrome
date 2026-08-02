@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { explainProperty } from '../../shared/glossary';
+import { fontFamiliesForDisplay } from '../../shared/font-utils';
 import type { BoxEdges, ColorValue, ComputedStyleInfo } from '../../shared/types';
 import { CopyIcon } from './Icons';
 import { Accordion, Button } from './UI';
@@ -84,6 +85,7 @@ function BoxRows({ name, values }: { name: 'margin' | 'padding'; values: BoxEdge
 export function StyleSections({ style }: { style: ComputedStyleInfo }) {
   const { t } = useI18n();
   const { typography, colors, spacing, appearance, layout } = style;
+  const selectedFonts = fontFamiliesForDisplay(typography);
   return (
     <div className="section-stack">
       <div className="section-label">{t('section.designDetails')}</div>
@@ -92,7 +94,11 @@ export function StyleSections({ style }: { style: ComputedStyleInfo }) {
         description={t('section.typographyHelp')}
         defaultOpen
       >
-        <PropertyRow label="font-family" value={typography.fontFamily} />
+        <PropertyRow
+          label={t('typography.fontsInSelection')}
+          propertyName="font-family"
+          value={selectedFonts.join(', ') || t('typography.noTextFonts')}
+        />
         <PropertyRow label="font-size" value={typography.fontSize} />
         <PropertyRow label="font-weight" value={typography.fontWeight} />
         <PropertyRow label="line-height" value={typography.lineHeight} />

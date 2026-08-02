@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { formatMediaTime } from '../../shared/media-utils';
 import { ExtensionRuntimeError, sendRuntimeMessage } from '../../shared/messages';
+import { buildSelectionReproductionPrompt } from '../../shared/reproduction-prompt';
 import type { DesignBookmark, ExtensionError, SelectedElementInfo } from '../../shared/types';
+import { localizedPatternName } from '../../shared/ui-pattern-labels';
+import { PromptCopyButton } from '../components/PromptCopyButton';
 import { SaveBookmarkForm } from '../components/SaveBookmarkForm';
 import { StructureSection } from '../components/StructureSection';
 import { StyleSections } from '../components/StyleSections';
@@ -148,11 +151,11 @@ export function InspectPage({
   }
 
   const description =
-    locale === 'en'
+    locale !== 'ja'
       ? (selection.pattern.descriptionEn ?? selection.pattern.description)
       : selection.pattern.description;
   const reasons =
-    locale === 'en'
+    locale !== 'ja'
       ? (selection.pattern.reasonsEn ?? selection.pattern.reasons)
       : selection.pattern.reasons;
   const confidence =
@@ -161,6 +164,12 @@ export function InspectPage({
       : selection.pattern.confidence >= 0.6
         ? t('inspect.likely')
         : t('inspect.guess');
+  const localizedName = localizedPatternName(
+    selection.pattern.name,
+    selection.pattern.japaneseName,
+    locale,
+  );
+  const reproductionPrompt = buildSelectionReproductionPrompt(selection, locale);
 
   return (
     <div className="page">
@@ -177,7 +186,9 @@ export function InspectPage({
           {selection.media ? <span className="video-badge">{t('inspect.video')}</span> : null}
         </div>
         <h1 id="selection-name">{selection.pattern.name}</h1>
-        <div className="summary__japanese">{selection.pattern.japaneseName}</div>
+        {localizedName !== selection.pattern.name ? (
+          <div className="summary__japanese">{localizedName}</div>
+        ) : null}
         <p className="summary__description">{description}</p>
         <div className="confidence">
           <div className="confidence__line">
@@ -237,17 +248,21 @@ export function InspectPage({
         </div>
       </section>
 
+      <div className="inspect-primary-actions">
+        {!showSave ? (
+          <Button variant="primary" className="save-button" onClick={() => setShowSave(true)}>
+            {selection.media ? t('inspect.saveVideo') : t('inspect.save')}
+          </Button>
+        ) : null}
+        <PromptCopyButton prompt={reproductionPrompt} />
+      </div>
       {showSave ? (
         <SaveBookmarkForm
           selection={selection}
           onCancel={() => setShowSave(false)}
           onSaved={onSaved}
         />
-      ) : (
-        <Button variant="primary" className="save-button" onClick={() => setShowSave(true)}>
-          {selection.media ? t('inspect.saveVideo') : t('inspect.save')}
-        </Button>
-      )}
+      ) : null}
       <StyleSections style={selection.computedStyle} />
       <StructureSection selection={selection} />
     </div>
