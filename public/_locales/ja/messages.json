@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "UI Lens — デザインインスペクター"
+  },
+  "extensionDescription": {
+    "message": "WebサイトのUIパターンを分析し、デザイン参考としてローカルに保存します。"
+  },
+  "actionTitle": {
+    "message": "UI Lensを開く"
+  }
+}

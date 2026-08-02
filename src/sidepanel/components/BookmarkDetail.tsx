@@ -6,6 +6,7 @@ import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
 import { ExternalIcon } from './Icons';
 import { StyleSections } from './StyleSections';
 import { Accordion, Button, Notice } from './UI';
+import { captureModeLabel, categoryLabel, useI18n } from '../i18n';
 
 const categories: BookmarkCategory[] = [
   'Header',
@@ -33,6 +34,7 @@ export function BookmarkDetail({
   onUpdated: (bookmark: DesignBookmark) => void;
   onDelete: () => void;
 }) {
+  const { locale, t } = useI18n();
   const image = useScreenshotUrl(bookmark.screenshot.screenshotId, 'full');
   const [editing, setEditing] = useState(startEditing);
   const [title, setTitle] = useState(bookmark.title);
@@ -44,7 +46,7 @@ export function BookmarkDetail({
 
   const save = async () => {
     if (!title.trim()) {
-      setError('タイトルを入力してください。');
+      setError(t('detail.titleRequired'));
       return;
     }
     setSaving(true);
@@ -62,7 +64,7 @@ export function BookmarkDetail({
       onUpdated(updated);
       setEditing(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '更新できませんでした。');
+      setError(caught instanceof Error ? caught.message : t('detail.updateError'));
     } finally {
       setSaving(false);
     }
@@ -71,77 +73,75 @@ export function BookmarkDetail({
   return (
     <div className="page detail-page">
       <div className="detail-toolbar">
-        <Button onClick={onBack}>← Back</Button>
+        <Button onClick={onBack}>← {t('detail.back')}</Button>
         <div>
           <Button
             variant="icon"
-            aria-label="元ページを新しいタブで開く"
-            title="Open source page"
+            aria-label={t('card.open')}
+            title={t('card.open')}
             onClick={() => void chrome.tabs.create({ url: bookmark.sourceUrl })}
           >
             <ExternalIcon />
           </Button>
           <Button onClick={() => setEditing((value) => !value)}>
-            {editing ? 'Cancel edit' : 'Edit'}
+            {editing ? t('detail.cancelEdit') : t('card.edit')}
           </Button>
           <Button className="danger-button" onClick={onDelete}>
-            Delete
+            {t('detail.delete')}
           </Button>
         </div>
       </div>
 
       <div className="detail-image">
         {image.url ? (
-          <img src={image.url} alt={`${bookmark.title}のスクリーンショット`} />
+          <img src={image.url} alt={bookmark.title} />
         ) : (
           <div className="image-placeholder">
-            {image.error ? 'Image unavailable' : 'Loading full image…'}
+            {image.error ? t('card.unavailable') : t('card.loading')}
           </div>
         )}
       </div>
-      {bookmark.screenshot.clippedToViewport ? (
-        <Notice>
-          要素がviewport外にはみ出していたため、表示されていた範囲のみ保存されています。
-        </Notice>
-      ) : null}
+      {bookmark.screenshot.clippedToViewport ? <Notice>{t('detail.clipped')}</Notice> : null}
 
       {editing ? (
         <section className="bookmark-form detail-edit">
           <label className="field">
-            <span>Title</span>
+            <span>{t('field.title')}</span>
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
           <div className="field-row">
             <label className="field">
-              <span>Category</span>
+              <span>{t('field.category')}</span>
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value as BookmarkCategory)}
               >
                 {categories.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {categoryLabel(item, locale)}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="field">
-              <span>Tags</span>
+              <span>{t('field.tags')}</span>
               <input value={tags} onChange={(event) => setTags(event.target.value)} />
             </label>
           </div>
           <label className="field">
-            <span>Memo</span>
+            <span>{t('field.memo')}</span>
             <textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <div className="form-actions">
             <Button variant="primary" disabled={saving} onClick={() => void save()}>
-              {saving ? 'Saving…' : 'Save changes'}
+              {saving ? t('detail.saving') : t('detail.save')}
             </Button>
           </div>
         </section>
       ) : (
         <section className="detail-summary">
-          <div className="detail-summary__category">{bookmark.category}</div>
+          <div className="detail-summary__category">{categoryLabel(bookmark.category, locale)}</div>
           <h1>{bookmark.title}</h1>
           <a
             href={bookmark.sourceUrl}
@@ -163,7 +163,7 @@ export function BookmarkDetail({
           {bookmark.video ? (
             <div className="media-frame-info">
               <div>
-                <span>Captured frame</span>
+                <span>{t('detail.capturedFrame')}</span>
                 <strong>
                   {formatMediaTime(bookmark.video.currentTime)}
                   {bookmark.video.duration === null
@@ -172,40 +172,46 @@ export function BookmarkDetail({
                 </strong>
               </div>
               <div>
-                <span>Video resolution</span>
+                <span>{t('detail.resolution')}</span>
                 <strong>
                   {bookmark.video.videoWidth || '—'} × {bookmark.video.videoHeight || '—'}
                 </strong>
               </div>
               <div>
-                <span>Displayed size</span>
+                <span>{t('detail.displayedSize')}</span>
                 <strong>
                   {Math.round(bookmark.video.displayedWidth)} ×{' '}
                   {Math.round(bookmark.video.displayedHeight)}
                 </strong>
               </div>
               <div>
-                <span>Aspect ratio</span>
+                <span>{t('detail.aspectRatio')}</span>
                 <strong>{bookmark.video.aspectRatio?.toFixed(2) ?? '—'}</strong>
               </div>
               <div>
-                <span>Capture area</span>
-                <strong>{bookmark.video.captureMode.replaceAll('-', ' ')}</strong>
+                <span>{t('detail.captureArea')}</span>
+                <strong>{captureModeLabel(bookmark.video.captureMode, locale)}</strong>
               </div>
               <div>
-                <span>Player controls</span>
-                <strong>{bookmark.video.controlsIncluded ? 'Included' : 'Not included'}</strong>
-              </div>
-              <div>
-                <span>Playback state</span>
+                <span>{t('detail.controls')}</span>
                 <strong>
-                  {bookmark.video.paused ? 'Paused' : 'Playing'} ·{' '}
-                  {bookmark.video.muted ? 'Muted' : 'Sound on'}
+                  {bookmark.video.controlsIncluded ? t('detail.included') : t('detail.notIncluded')}
                 </strong>
               </div>
               <div>
-                <span>Subtitles</span>
-                <strong>{bookmark.video.subtitlesDetected ? 'Detected' : 'Not detected'}</strong>
+                <span>{t('detail.playback')}</span>
+                <strong>
+                  {bookmark.video.paused ? t('inspect.paused') : t('inspect.playing')} ·{' '}
+                  {bookmark.video.muted ? t('detail.muted') : t('detail.soundOn')}
+                </strong>
+              </div>
+              <div>
+                <span>{t('detail.subtitles')}</span>
+                <strong>
+                  {bookmark.video.subtitlesDetected
+                    ? t('detail.detected')
+                    : t('detail.notDetected')}
+                </strong>
               </div>
               {bookmark.video.captureLimitation ? (
                 <p className="media-frame-info__notice">{bookmark.video.captureLimitation}</p>
@@ -214,7 +220,7 @@ export function BookmarkDetail({
           ) : null}
           <div className="pattern-line">
             <div>
-              <span>Detected pattern</span>
+              <span>{t('detail.pattern')}</span>
               <strong>{bookmark.uiPattern.name}</strong>
               <small>{bookmark.uiPattern.japaneseName}</small>
             </div>
@@ -225,8 +231,8 @@ export function BookmarkDetail({
 
       <StyleSections style={bookmark.style} />
       <div className="section-stack section-stack--advanced">
-        <div className="section-label">Advanced</div>
-        <Accordion title="Structure" description="保存時のHTML情報">
+        <div className="section-label">{t('detail.advanced')}</div>
+        <Accordion title={t('detail.structure')} description={t('detail.structureHelp')}>
           <dl className="definition-list">
             <div>
               <dt>HTML tag</dt>
@@ -248,7 +254,7 @@ export function BookmarkDetail({
             </div>
           </dl>
           <div className="code-block">
-            <span>HTML summary</span>
+            <span>{t('structure.html')}</span>
             <code>{bookmark.htmlSummary}</code>
           </div>
         </Accordion>

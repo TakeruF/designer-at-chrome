@@ -15,7 +15,9 @@ export interface UIPatternResult {
   japaneseName: string;
   confidence: number;
   description: string;
+  descriptionEn?: string;
   reasons: string[];
+  reasonsEn?: string[];
 }
 
 export interface ColorValue {
@@ -213,6 +215,7 @@ export interface CaptureStoredResult {
 export interface ExtensionError {
   code:
     | 'RESTRICTED_PAGE'
+    | 'HOST_PERMISSION_REQUIRED'
     | 'NO_ACTIVE_TAB'
     | 'NO_SELECTION'
     | 'CAPTURE_FAILED'
@@ -246,8 +249,10 @@ export interface BookmarkDraft {
 }
 
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type SupportedLocale = 'ja' | 'en';
 
 export interface UIState {
   activeTab: 'inspect' | 'bookmarks';
   theme: ThemePreference;
+  locale: SupportedLocale;
 }

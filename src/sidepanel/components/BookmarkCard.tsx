@@ -3,6 +3,7 @@ import type { DesignBookmark } from '../../shared/types';
 import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
 import { ExternalIcon, VideoIcon } from './Icons';
 import { Button } from './UI';
+import { categoryLabel, useI18n } from '../i18n';
 
 function domain(url: string): string {
   try {
@@ -12,8 +13,8 @@ function domain(url: string): string {
   }
 }
 
-function dateLabel(value: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
+function dateLabel(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -31,27 +32,28 @@ export function BookmarkCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { locale, t } = useI18n();
   const screenshot = useScreenshotUrl(bookmark.screenshot.screenshotId, 'thumbnail');
   return (
     <article className="bookmark-card">
       <button
         className="bookmark-card__image"
         onClick={onView}
-        aria-label={`${bookmark.title}の詳細を表示`}
+        aria-label={`${t('card.details')}: ${bookmark.title}`}
       >
         {screenshot.url ? (
-          <img src={screenshot.url} alt={`${bookmark.title}の保存画像`} />
+          <img src={screenshot.url} alt={bookmark.title} />
         ) : (
           <div className="image-placeholder">
-            {screenshot.error ? 'Image unavailable' : 'Loading image…'}
+            {screenshot.error ? t('card.unavailable') : t('card.loading')}
           </div>
         )}
         {bookmark.screenshot.clippedToViewport ? (
-          <span className="crop-label">Visible area</span>
+          <span className="crop-label">{t('card.visible')}</span>
         ) : null}
         {bookmark.video ? (
           <span className="frame-label">
-            <VideoIcon /> Video frame · {formatMediaTime(bookmark.video.currentTime)}
+            <VideoIcon /> {t('card.video')} · {formatMediaTime(bookmark.video.currentTime)}
             {bookmark.video.duration === null
               ? ''
               : ` / ${formatMediaTime(bookmark.video.duration)}`}
@@ -60,8 +62,10 @@ export function BookmarkCard({
       </button>
       <div className="bookmark-card__body">
         <div className="bookmark-card__meta">
-          <span>{bookmark.category}</span>
-          <time dateTime={bookmark.createdAt}>{dateLabel(bookmark.createdAt)}</time>
+          <span>{categoryLabel(bookmark.category, locale)}</span>
+          <time dateTime={bookmark.createdAt}>
+            {dateLabel(bookmark.createdAt, locale === 'ja' ? 'ja-JP' : 'en-US')}
+          </time>
         </div>
         <button className="bookmark-card__title" onClick={onView}>
           {bookmark.title}
@@ -72,7 +76,7 @@ export function BookmarkCard({
         </div>
         {bookmark.video?.captureLimitation ? (
           <div className="bookmark-card__warning" title={bookmark.video.captureLimitation}>
-            Capture limitation
+            {t('card.limitation')}
           </div>
         ) : null}
         {bookmark.tags.length > 0 ? (
@@ -83,12 +87,12 @@ export function BookmarkCard({
           </div>
         ) : null}
         <div className="bookmark-card__actions">
-          <Button onClick={onView}>Details</Button>
-          <Button onClick={onEdit}>Edit</Button>
+          <Button onClick={onView}>{t('card.details')}</Button>
+          <Button onClick={onEdit}>{t('card.edit')}</Button>
           <Button
             variant="icon"
-            aria-label="元ページを新しいタブで開く"
-            title="Open source page"
+            aria-label={t('card.open')}
+            title={t('card.open')}
             onClick={() => void chrome.tabs.create({ url: bookmark.sourceUrl })}
           >
             <ExternalIcon />
@@ -96,8 +100,8 @@ export function BookmarkCard({
           <Button
             variant="icon"
             className="danger-icon"
-            aria-label="ブックマークを削除"
-            title="Delete bookmark"
+            aria-label={t('card.delete')}
+            title={t('card.delete')}
             onClick={onDelete}
           >
             ×

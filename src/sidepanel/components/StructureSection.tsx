@@ -1,11 +1,13 @@
 import type { SelectedElementInfo } from '../../shared/types';
 import { Accordion } from './UI';
+import { useI18n } from '../i18n';
 
 export function StructureSection({ selection }: { selection: SelectedElementInfo }) {
+  const { t } = useI18n();
   return (
     <div className="section-stack section-stack--advanced">
-      <div className="section-label">Advanced</div>
-      <Accordion title="Structure" description="HTMLとアクセシビリティの詳細">
+      <div className="section-label">{t('section.advanced')}</div>
+      <Accordion title={t('section.structure')} description={t('section.structureHelp')}>
         <dl className="definition-list">
           <div>
             <dt>HTML tag</dt>
@@ -39,11 +41,11 @@ export function StructureSection({ selection }: { selection: SelectedElementInfo
           </div>
         </dl>
         <div className="code-block">
-          <span>Text preview</span>
-          <p>{selection.text || 'テキストは含まれていません。'}</p>
+          <span>{t('structure.text')}</span>
+          <p>{selection.text || t('structure.noText')}</p>
         </div>
         <div className="code-block">
-          <span>HTML summary</span>
+          <span>{t('structure.html')}</span>
           <code>{selection.htmlSummary}</code>
         </div>
       </Accordion>

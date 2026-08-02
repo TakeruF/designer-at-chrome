@@ -1,47 +1,88 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatMediaTime } from '../../shared/media-utils';
-import { sendRuntimeMessage } from '../../shared/messages';
-import type { DesignBookmark, SelectedElementInfo } from '../../shared/types';
+import { ExtensionRuntimeError, sendRuntimeMessage } from '../../shared/messages';
+import type { DesignBookmark, ExtensionError, SelectedElementInfo } from '../../shared/types';
 import { SaveBookmarkForm } from '../components/SaveBookmarkForm';
 import { StructureSection } from '../components/StructureSection';
 import { StyleSections } from '../components/StyleSections';
 import { Button, EmptyState, Notice } from '../components/UI';
+import { activeTabHostPattern, requestHostAccess } from '../host-permissions';
+import { useI18n } from '../i18n';
 
-function confidenceLabel(value: number): string {
-  if (value >= 0.85) return 'High confidence';
-  if (value >= 0.6) return 'Likely match';
-  return 'Best guess';
+function errorFrom(caught: unknown, fallback: string): ExtensionError {
+  return {
+    code: caught instanceof ExtensionRuntimeError ? caught.code : 'UNKNOWN',
+    message: caught instanceof Error ? caught.message : fallback,
+  };
 }
 
 export function InspectPage({
   selection,
   error: initialError,
   onSelection,
+  onError,
+  onPermissionGranted,
   onSaved,
 }: {
   selection: SelectedElementInfo | null;
-  error: string | null;
+  error: ExtensionError | null;
   onSelection: (selection: SelectedElementInfo) => void;
+  onError: (error: ExtensionError | null) => void;
+  onPermissionGranted: () => Promise<void>;
   onSaved: (bookmark: DesignBookmark) => void;
 }) {
+  const { locale, t } = useI18n();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<ExtensionError | null>(null);
   const [showSave, setShowSave] = useState(false);
+  const [permissionOrigin, setPermissionOrigin] = useState<string | null>(null);
+  const visibleError = localError ?? initialError;
+
+  useEffect(() => {
+    let active = true;
+    if (visibleError?.code === 'HOST_PERMISSION_REQUIRED') {
+      void activeTabHostPattern().then((origin) => {
+        if (active) setPermissionOrigin(origin);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [visibleError?.code]);
 
   const request = async (type: 'START_SELECTION' | 'RESELECT_ELEMENT') => {
     setBusy(true);
-    setError(null);
+    setLocalError(null);
+    onError(null);
     try {
       await sendRuntimeMessage<void>({ type });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '要素選択を開始できませんでした。');
+      setLocalError(errorFrom(caught, t('error.start')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const grantAccess = async () => {
+    setBusy(true);
+    setLocalError(null);
+    try {
+      const granted = permissionOrigin ? await requestHostAccess(permissionOrigin) : false;
+      if (!granted) {
+        setLocalError({ code: 'HOST_PERMISSION_REQUIRED', message: t('permission.denied') });
+        return;
+      }
+      await onPermissionGranted();
+      await sendRuntimeMessage<void>({ type: 'START_SELECTION' });
+    } catch (caught) {
+      setLocalError(errorFrom(caught, t('error.start')));
     } finally {
       setBusy(false);
     }
   };
 
   const move = async (direction: 'parent' | 'child') => {
-    setError(null);
+    setLocalError(null);
     try {
       const next = await sendRuntimeMessage<SelectedElementInfo>({
         type: 'MOVE_SELECTION',
@@ -49,55 +90,98 @@ export function InspectPage({
       });
       onSelection(next);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '選択範囲を変更できませんでした。');
+      setLocalError(errorFrom(caught, t('error.move')));
     }
   };
 
   if (!selection) {
+    const needsPermission = visibleError?.code === 'HOST_PERMISSION_REQUIRED';
     return (
       <div className="page page--empty">
-        {initialError || error ? <Notice tone="error">{error ?? initialError}</Notice> : null}
-        <EmptyState
-          title="Learn from any interface"
-          description="ページ上の要素を選ぶと、役割・タイポグラフィ・色・余白・レイアウトを分解して表示します。"
-          action={
+        {needsPermission ? (
+          <section className="access-card" aria-labelledby="access-title">
+            <div className="access-card__icon" aria-hidden="true">
+              <span />
+            </div>
+            <div>
+              <h2 id="access-title">{t('permission.title')}</h2>
+              <p>{t('permission.description')}</p>
+            </div>
             <Button
               variant="primary"
-              disabled={busy}
-              onClick={() => void request('START_SELECTION')}
+              disabled={busy || !permissionOrigin}
+              onClick={() => void grantAccess()}
             >
-              {busy ? 'Starting…' : 'Select element'}
+              {busy ? t('inspect.starting') : t('permission.action')}
             </Button>
-          }
-        />
-        <div className="shortcut-hint">
-          <kbd>Esc</kbd>
-          <span>選択モードを終了</span>
-        </div>
+          </section>
+        ) : (
+          <>
+            {visibleError ? (
+              <Notice tone="error">
+                {visibleError.code === 'RESTRICTED_PAGE'
+                  ? t('error.unavailable')
+                  : visibleError.message}
+              </Notice>
+            ) : null}
+            <EmptyState
+              title={t('inspect.emptyTitle')}
+              description={t('inspect.emptyDescription')}
+              action={
+                <Button
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() => void request('START_SELECTION')}
+                >
+                  {busy ? t('inspect.starting') : t('inspect.select')}
+                </Button>
+              }
+            />
+            <div className="shortcut-hint">
+              <kbd>Esc</kbd>
+              <span>{t('inspect.escape')}</span>
+            </div>
+          </>
+        )}
       </div>
     );
   }
 
+  const description =
+    locale === 'en'
+      ? (selection.pattern.descriptionEn ?? selection.pattern.description)
+      : selection.pattern.description;
+  const reasons =
+    locale === 'en'
+      ? (selection.pattern.reasonsEn ?? selection.pattern.reasons)
+      : selection.pattern.reasons;
+  const confidence =
+    selection.pattern.confidence >= 0.85
+      ? t('inspect.high')
+      : selection.pattern.confidence >= 0.6
+        ? t('inspect.likely')
+        : t('inspect.guess');
+
   return (
     <div className="page">
-      {error ? <Notice tone="error">{error}</Notice> : null}
-      <div className="selection-actions" aria-label="選択範囲の操作">
-        <Button onClick={() => void move('parent')}>Select parent</Button>
-        <Button onClick={() => void move('child')}>Select child</Button>
-        <Button onClick={() => void request('RESELECT_ELEMENT')}>Reselect</Button>
+      {visibleError ? <Notice tone="error">{visibleError.message}</Notice> : null}
+      <div className="selection-actions" aria-label={t('inspect.actions')}>
+        <Button onClick={() => void move('parent')}>{t('inspect.parent')}</Button>
+        <Button onClick={() => void move('child')}>{t('inspect.child')}</Button>
+        <Button onClick={() => void request('RESELECT_ELEMENT')}>{t('inspect.reselect')}</Button>
       </div>
 
       <section className="summary" aria-labelledby="selection-name">
         <div className="summary__eyebrow">
-          <span className="status-dot" /> Selected element
-          {selection.media ? <span className="video-badge">Video Content</span> : null}
+          <span className="status-dot" /> {t('inspect.selected')}
+          {selection.media ? <span className="video-badge">{t('inspect.video')}</span> : null}
         </div>
         <h1 id="selection-name">{selection.pattern.name}</h1>
         <div className="summary__japanese">{selection.pattern.japaneseName}</div>
-        <p className="summary__description">{selection.pattern.description}</p>
+        <p className="summary__description">{description}</p>
         <div className="confidence">
           <div className="confidence__line">
-            <span>{confidenceLabel(selection.pattern.confidence)}</span>
+            <span>{confidence}</span>
             <strong>{Math.round(selection.pattern.confidence * 100)}%</strong>
           </div>
           <div className="confidence__track">
@@ -105,19 +189,19 @@ export function InspectPage({
           </div>
         </div>
         <ul className="reason-list">
-          {selection.pattern.reasons.map((reason) => (
+          {reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
         <div className="summary__facts">
           <div>
-            <span>Size</span>
+            <span>{t('inspect.size')}</span>
             <strong>
               {Math.round(selection.width)} × {Math.round(selection.height)}
             </strong>
           </div>
           <div>
-            <span>Font</span>
+            <span>{t('inspect.font')}</span>
             <strong>
               {selection.computedStyle.typography.fontSize} /{' '}
               {selection.computedStyle.typography.fontWeight}
@@ -126,7 +210,7 @@ export function InspectPage({
           {selection.media ? (
             <>
               <div>
-                <span>At selection</span>
+                <span>{t('inspect.time')}</span>
                 <strong>
                   {formatMediaTime(selection.media.currentTime)}
                   {selection.media.duration === null
@@ -135,16 +219,16 @@ export function InspectPage({
                 </strong>
               </div>
               <div>
-                <span>Video source</span>
+                <span>{t('inspect.videoSource')}</span>
                 <strong>
-                  {selection.media.videoWidth || '—'} × {selection.media.videoHeight || '—'}
-                  {selection.media.paused ? ' · Paused' : ' · Playing'}
+                  {selection.media.videoWidth || '—'} × {selection.media.videoHeight || '—'} ·{' '}
+                  {selection.media.paused ? t('inspect.paused') : t('inspect.playing')}
                 </strong>
               </div>
             </>
           ) : null}
           <div className="summary__color">
-            <span>Primary color</span>
+            <span>{t('inspect.primaryColor')}</span>
             <strong>
               <i style={{ backgroundColor: selection.computedStyle.colors.text.css }} />
               {selection.computedStyle.colors.text.hex ?? selection.computedStyle.colors.text.css}
@@ -161,10 +245,9 @@ export function InspectPage({
         />
       ) : (
         <Button variant="primary" className="save-button" onClick={() => setShowSave(true)}>
-          {selection.media ? 'Save video frame' : 'Save bookmark'}
+          {selection.media ? t('inspect.saveVideo') : t('inspect.save')}
         </Button>
       )}
-
       <StyleSections style={selection.computedStyle} />
       <StructureSection selection={selection} />
     </div>

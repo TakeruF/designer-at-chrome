@@ -1,20 +1,53 @@
-import { useEffect, useState } from 'react';
-import { isExtensionMessage, sendRuntimeMessage } from '../shared/messages';
-import type { SelectedElementInfo, ThemePreference, UIState } from '../shared/types';
-import { getUIState, setUIState } from '../storage/bookmark-storage';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { ExtensionRuntimeError, isExtensionMessage, sendRuntimeMessage } from '../shared/messages';
+import type {
+  ExtensionError,
+  SelectedElementInfo,
+  ThemePreference,
+  UIState,
+} from '../shared/types';
+import { getUIState, localeFromLanguage, setUIState } from '../storage/bookmark-storage';
 import { BookmarkIcon, InspectIcon, ThemeIcon } from './components/Icons';
 import { Button } from './components/UI';
+import { I18nProvider, useI18n } from './i18n';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { InspectPage } from './pages/InspectPage';
 
 const themeOrder: ThemePreference[] = ['system', 'light', 'dark'];
+const initialState: UIState = {
+  activeTab: 'inspect',
+  theme: 'system',
+  locale: localeFromLanguage(chrome.i18n.getUILanguage()),
+};
+
+function extensionError(caught: unknown): ExtensionError {
+  if (caught instanceof ExtensionRuntimeError)
+    return { code: caught.code, message: caught.message };
+  return {
+    code: 'UNKNOWN',
+    message: caught instanceof Error ? caught.message : 'An unexpected error occurred.',
+  };
+}
 
 export function App() {
-  const [uiState, setState] = useState<UIState>({ activeTab: 'inspect', theme: 'system' });
+  const [uiState, setState] = useState<UIState>(initialState);
   const [hydrated, setHydrated] = useState(false);
   const [selection, setSelection] = useState<SelectedElementInfo | null>(null);
-  const [inspectionError, setInspectionError] = useState<string | null>(null);
+  const [inspectionError, setInspectionError] = useState<ExtensionError | null>(null);
   const [bookmarksVersion, setBookmarksVersion] = useState(0);
+
+  const refreshSelection = useCallback(async () => {
+    try {
+      const current = await sendRuntimeMessage<SelectedElementInfo | null>({
+        type: 'GET_SELECTION',
+      });
+      setSelection(current);
+      setInspectionError(null);
+    } catch (caught) {
+      setSelection(null);
+      setInspectionError(extensionError(caught));
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -25,89 +58,146 @@ export function App() {
       .finally(() => {
         if (active) setHydrated(true);
       });
-    void sendRuntimeMessage<SelectedElementInfo | null>({ type: 'GET_SELECTION' })
-      .then((current) => {
-        if (active && current) setSelection(current);
-      })
-      .catch((caught: unknown) => {
-        if (active)
-          setInspectionError(
-            caught instanceof Error ? caught.message : 'このページを検査できません。',
-          );
-      });
+    void refreshSelection();
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshSelection]);
 
   useEffect(() => {
-    const listener = (message: unknown) => {
+    const messageListener = (message: unknown) => {
       if (isExtensionMessage(message) && message.type === 'ELEMENT_SELECTED') {
         setSelection(message.payload);
         setInspectionError(null);
       }
     };
-    chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
-  }, []);
+    const tabActivatedListener = () => void refreshSelection();
+    const tabUpdatedListener = (
+      _tabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab,
+    ) => {
+      if (changeInfo.url && tab.active) void refreshSelection();
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+    chrome.tabs.onActivated.addListener(tabActivatedListener);
+    chrome.tabs.onUpdated.addListener(tabUpdatedListener);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+      chrome.tabs.onActivated.removeListener(tabActivatedListener);
+      chrome.tabs.onUpdated.removeListener(tabUpdatedListener);
+    };
+  }, [refreshSelection]);
 
   useEffect(() => {
     if (uiState.theme === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = uiState.theme;
-    if (hydrated)
+    document.documentElement.lang = uiState.locale;
+    if (hydrated) {
       void setUIState(uiState).catch((caught: unknown) =>
         console.error('Failed to persist UI state.', caught),
       );
+    }
   }, [hydrated, uiState]);
 
+  return (
+    <I18nProvider locale={uiState.locale}>
+      <AppShell
+        uiState={uiState}
+        selection={selection}
+        inspectionError={inspectionError}
+        bookmarksVersion={bookmarksVersion}
+        onState={setState}
+        onSelection={setSelection}
+        onError={setInspectionError}
+        onRefreshSelection={refreshSelection}
+        onSaved={() => {
+          setBookmarksVersion((value) => value + 1);
+          setState((state) => ({ ...state, activeTab: 'bookmarks' }));
+        }}
+      />
+    </I18nProvider>
+  );
+}
+
+function AppShell({
+  uiState,
+  selection,
+  inspectionError,
+  bookmarksVersion,
+  onState,
+  onSelection,
+  onError,
+  onRefreshSelection,
+  onSaved,
+}: {
+  uiState: UIState;
+  selection: SelectedElementInfo | null;
+  inspectionError: ExtensionError | null;
+  bookmarksVersion: number;
+  onState: Dispatch<SetStateAction<UIState>>;
+  onSelection: (selection: SelectedElementInfo) => void;
+  onError: (error: ExtensionError | null) => void;
+  onRefreshSelection: () => Promise<void>;
+  onSaved: () => void;
+}) {
+  const { t } = useI18n();
   const selectTab = (activeTab: UIState['activeTab']) =>
-    setState((state) => ({ ...state, activeTab }));
-  const cycleTheme = () => {
-    setState((state) => {
+    onState((state) => ({ ...state, activeTab }));
+  const cycleTheme = () =>
+    onState((state) => {
       const index = themeOrder.indexOf(state.theme);
       return { ...state, theme: themeOrder[(index + 1) % themeOrder.length] };
     });
-  };
-  const onSaved = () => {
-    setBookmarksVersion((value) => value + 1);
-    selectTab('bookmarks');
-  };
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <div className="brand" aria-label="UI Lens">
-          <span className="brand__mark">
+          <span className="brand__mark" aria-hidden="true">
             <i />
             <i />
             <i />
           </span>
           <strong>UI Lens</strong>
-          <small>Local</small>
+          <small>{t('app.local')}</small>
         </div>
-        <Button
-          variant="icon"
-          aria-label={`テーマを変更。現在: ${uiState.theme}`}
-          title={`Theme: ${uiState.theme}`}
-          onClick={cycleTheme}
-        >
-          <ThemeIcon />
-        </Button>
+        <div className="header-actions">
+          <Button
+            variant="icon"
+            className="language-button"
+            aria-label={t('app.language')}
+            title={t('app.language')}
+            onClick={() =>
+              onState((state) => ({ ...state, locale: state.locale === 'ja' ? 'en' : 'ja' }))
+            }
+          >
+            {uiState.locale === 'ja' ? 'EN' : '日'}
+          </Button>
+          <Button
+            variant="icon"
+            aria-label={t('app.theme', { theme: uiState.theme })}
+            title={t('app.theme', { theme: uiState.theme })}
+            onClick={cycleTheme}
+          >
+            <ThemeIcon />
+          </Button>
+        </div>
       </header>
-      <nav className="tab-bar" aria-label="Main navigation">
+      <nav className="tab-bar" aria-label={t('app.nav')}>
         <button
           className={uiState.activeTab === 'inspect' ? 'is-active' : ''}
           aria-current={uiState.activeTab === 'inspect' ? 'page' : undefined}
           onClick={() => selectTab('inspect')}
         >
-          <InspectIcon /> Inspect
+          <InspectIcon /> {t('app.inspect')}
         </button>
         <button
           className={uiState.activeTab === 'bookmarks' ? 'is-active' : ''}
           aria-current={uiState.activeTab === 'bookmarks' ? 'page' : undefined}
           onClick={() => selectTab('bookmarks')}
         >
-          <BookmarkIcon /> Bookmarks
+          <BookmarkIcon /> {t('app.bookmarks')}
         </button>
       </nav>
       <main>
@@ -115,7 +205,9 @@ export function App() {
           <InspectPage
             selection={selection}
             error={inspectionError}
-            onSelection={setSelection}
+            onSelection={onSelection}
+            onError={onError}
+            onPermissionGranted={onRefreshSelection}
             onSaved={onSaved}
           />
         ) : (

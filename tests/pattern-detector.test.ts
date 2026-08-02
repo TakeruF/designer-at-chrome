@@ -37,6 +37,8 @@ describe('rule-based UI pattern detector', () => {
     expect(result.name).toBe('Header');
     expect(result.confidence).toBeGreaterThanOrEqual(0.95);
     expect(result.reasons[0]).toContain('header');
+    expect(result.descriptionEn).toContain('branding');
+    expect(result.reasonsEn?.[0]).toContain('header element');
   });
 
   it('recognizes icon-only buttons', () => {

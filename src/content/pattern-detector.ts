@@ -35,9 +35,87 @@ interface Candidate {
   name: string;
   japaneseName: string;
   description: string;
+  descriptionEn: string;
   score: number;
   reasons: string[];
 }
+
+const englishDescriptions: Record<string, string> = {
+  Header: 'A top-level area that groups branding and primary actions.',
+  'Navigation Bar': 'The primary way to move within or between pages.',
+  'Hero Section': 'A prominent introduction that communicates the page value.',
+  Footer: 'A closing area for supporting information and links.',
+  Sidebar: 'A supporting navigation or content area placed at the edge of the screen.',
+  'Primary Button': 'A button that emphasizes the most important action.',
+  'Secondary Button': 'A button for a supporting action.',
+  'Icon Button': 'A compact action represented mainly by an icon.',
+  'Dropdown Button': 'A button that opens additional choices.',
+  Card: 'A grouped surface for related content and actions.',
+  Modal: 'A temporary surface presented above the main interface.',
+  Dialog: 'An interactive surface for confirmation or input.',
+  Drawer: 'A supporting panel that appears from a screen edge.',
+  'Bottom Sheet': 'An action panel that appears from the bottom of the screen.',
+  Tooltip: 'A temporary explanation associated with another element.',
+  Tabs: 'Controls for switching between views in the same area.',
+  Accordion: 'A disclosure control that expands and collapses content.',
+  'Search Bar': 'An input used to find content by keyword.',
+  'Text Field': 'A form control for entering short text.',
+  Select: 'A form control for choosing one value from a list.',
+  Checkbox: 'An on/off input that supports multiple selections.',
+  'Radio Button': 'An input for choosing one option from a group.',
+  Badge: 'A compact label that communicates status or a count.',
+  Avatar: 'An image representing a person or organization.',
+  Breadcrumb: 'Navigation showing the hierarchy leading to the current location.',
+  Table: 'Structured data displayed in rows and columns.',
+  'List Item': 'A single item within a list.',
+  'Video Frame': 'A target for saving the current video moment as a still image.',
+  Section: 'A meaningful division of page content.',
+  'Unknown Element': 'An element without strong evidence for a known UI pattern.',
+};
+
+const englishReasons: Record<string, string> = {
+  header要素またはbannerロールを持つ: 'Uses a header element or banner role',
+  ページ上部に存在する: 'Located near the top of the page',
+  幅広い領域である: 'Spans a wide area',
+  複数のリンクを含む: 'Contains multiple links',
+  ロゴらしい画像を含む: 'Contains a logo-like image',
+  nav要素またはnavigationロールを持つ: 'Uses a nav element or navigation role',
+  リンクがレイアウトで整列されている: 'Links are aligned by a layout system',
+  footer要素またはcontentinfoロールを持つ: 'Uses a footer element or contentinfo role',
+  video要素である: 'Uses a video element',
+  現在の再生フレームを撮影できる: 'Can capture the current playback frame',
+  ページ上部付近の大きな領域である: 'A large area near the top of the page',
+  見出しを含む: 'Contains a heading',
+  主要操作らしいボタンを含む: 'Contains a likely primary action',
+  画面端にある縦長の補助領域である: 'A tall supporting area at the screen edge',
+  ポップアップメニューを開く属性または名称を持つ:
+    'Has attributes or naming associated with a popup menu',
+  ボタン内が主にアイコンで構成されている: 'The button consists mainly of an icon',
+  button要素またはbuttonロールを持つ: 'Uses a button element or button role',
+  主要操作を示す名前やクラスを持つ: 'Its name or class suggests a primary action',
+  '塗りの背景を持ち、視覚的に強調されている': 'A filled background gives it visual emphasis',
+  主要操作を示す強い手掛かりがない: 'No strong signal of a primary action',
+  dialog要素またはdialogロールを持つ: 'Uses a dialog element or dialog role',
+  画面下部に固定された広いパネルである: 'A wide panel fixed to the bottom of the screen',
+  画面端に固定されたパネル状の領域である: 'A panel-like area fixed to a screen edge',
+  viewportに固定された大きな領域である: 'A large area fixed to the viewport',
+  tooltipロールまたは名称を持つ: 'Has a tooltip role or tooltip-like name',
+  tablistロールまたはタブを示す名称を持つ: 'Has a tablist role or tab-like name',
+  開閉式UIを示す属性または名称を持つ: 'Has attributes or naming associated with disclosure UI',
+  検索用のinputまたは名称を持つ: 'Uses a search input or search-like name',
+  checkbox入力である: 'Uses a checkbox input',
+  radio入力である: 'Uses a radio input',
+  文字入力用のフォーム要素である: 'A form element used for text input',
+  select要素またはcomboboxロールを持つ: 'Uses a select element or combobox role',
+  '境界、角丸、影などで内容がまとまっている': 'Border, radius, or shadow groups the content',
+  小さな状態ラベルらしい寸法と名称を持つ: 'Its size and name resemble a compact status label',
+  '正方形に近い人物・プロフィール画像らしい': 'A near-square image resembling a profile image',
+  navigationロールとbreadcrumb名称を持つ: 'Has a navigation role and breadcrumb name',
+  table要素である: 'Uses a table element',
+  リスト項目である: 'Uses a list item element or role',
+  section要素である: 'Uses a section element',
+  既知パターンの強い手掛かりがない: 'No strong signal for a known UI pattern',
+};
 
 const patternCopy: Record<string, [string, string]> = {
   Header: ['ヘッダー', 'ページ上部でブランドや主要操作をまとめる領域です。'],
@@ -74,7 +152,14 @@ const patternCopy: Record<string, [string, string]> = {
 
 function candidate(name: string, score: number, reasons: string[]): Candidate {
   const [japaneseName, description] = patternCopy[name];
-  return { name, japaneseName, description, score, reasons };
+  return {
+    name,
+    japaneseName,
+    description,
+    descriptionEn: englishDescriptions[name],
+    score,
+    reasons,
+  };
 }
 
 const hasToken = (features: PatternFeatures, pattern: RegExp) =>
@@ -229,7 +314,9 @@ export function detectPatternFromFeatures(features: PatternFeatures): UIPatternR
     japaneseName: best.japaneseName,
     confidence: Math.max(0, Math.min(1, Number(best.score.toFixed(2)))),
     description: best.description,
+    descriptionEn: best.descriptionEn,
     reasons: best.reasons,
+    reasonsEn: best.reasons.map((reason) => englishReasons[reason] ?? reason),
   };
 }
 

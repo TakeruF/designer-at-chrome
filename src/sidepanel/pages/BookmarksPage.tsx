@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BookmarkCategory, DesignBookmark } from '../../shared/types';
-import { getBookmarks, removeBookmark } from '../../storage/bookmark-storage';
+import { addBookmark, getBookmarks, removeBookmark } from '../../storage/bookmark-storage';
 import { createExportZip, importFromZip } from '../../storage/export-import';
 import { deleteScreenshot } from '../../storage/screenshot-db';
 import { BookmarkCard } from '../components/BookmarkCard';
 import { BookmarkDetail } from '../components/BookmarkDetail';
 import { SearchIcon } from '../components/Icons';
 import { Button, EmptyState, Notice } from '../components/UI';
+import { categoryLabel, useI18n } from '../i18n';
 
 type SortOrder = 'newest' | 'oldest';
 type CategoryFilter = BookmarkCategory | 'All';
@@ -38,6 +39,7 @@ function searchableText(bookmark: DesignBookmark): string {
 }
 
 export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
+  const { locale, t } = useI18n();
   const [bookmarks, setBookmarks] = useState<DesignBookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -60,7 +62,7 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
         if (active)
           setStatus({
             tone: 'error',
-            text: caught instanceof Error ? caught.message : '読み込めませんでした。',
+            text: caught instanceof Error ? caught.message : t('library.loadError'),
           });
       })
       .finally(() => {
@@ -69,7 +71,7 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
     return () => {
       active = false;
     };
-  }, [refreshToken]);
+  }, [refreshToken, t]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -93,11 +95,11 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
       anchor.download = `ui-lens-bookmarks-${new Date().toISOString().slice(0, 10)}.zip`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus({ tone: 'success', text: `${bookmarks.length}件をZIPへエクスポートしました。` });
+      setStatus({ tone: 'success', text: t('library.exported', { count: bookmarks.length }) });
     } catch (caught) {
       setStatus({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'エクスポートに失敗しました。',
+        text: caught instanceof Error ? caught.message : t('library.exportError'),
       });
     }
   };
@@ -109,12 +111,12 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
       setBookmarks(await getBookmarks());
       setStatus({
         tone: 'success',
-        text: `${result.imported}件をインポートしました${result.skipped ? `（画像不足で${result.skipped}件をスキップ）` : ''}。`,
+        text: `${t('library.imported', { count: result.imported })}${result.skipped ? t('library.importedSkipped', { count: result.skipped }) : ''}`,
       });
     } catch (caught) {
       setStatus({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'インポートに失敗しました。',
+        text: caught instanceof Error ? caught.message : t('library.importError'),
       });
     }
   };
@@ -123,16 +125,21 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
     if (!deleteTarget) return;
     setStatus(null);
     try {
-      await deleteScreenshot(deleteTarget.screenshot.screenshotId);
       await removeBookmark(deleteTarget.id);
+      try {
+        await deleteScreenshot(deleteTarget.screenshot.screenshotId);
+      } catch (imageError) {
+        await addBookmark(deleteTarget);
+        throw imageError;
+      }
       setBookmarks((items) => items.filter((item) => item.id !== deleteTarget.id));
       if (selected?.id === deleteTarget.id) setSelected(null);
       setDeleteTarget(null);
-      setStatus({ tone: 'success', text: 'ブックマークと画像を削除しました。' });
+      setStatus({ tone: 'success', text: t('library.deleted') });
     } catch (caught) {
       setStatus({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : '削除に失敗しました。',
+        text: caught instanceof Error ? caught.message : t('library.deleteError'),
       });
     }
   };
@@ -166,14 +173,14 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
     <div className="page bookmarks-page">
       <div className="bookmarks-heading">
         <div>
-          <div className="section-label">Local collection</div>
-          <h1>Bookmarks</h1>
-          <p>{bookmarks.length} saved designs</p>
+          <div className="section-label">{t('library.eyebrow')}</div>
+          <h1>{t('library.title')}</h1>
+          <p>{t('library.count', { count: bookmarks.length })}</p>
         </div>
         <div className="transfer-actions">
-          <Button onClick={() => fileInput.current?.click()}>Import</Button>
+          <Button onClick={() => fileInput.current?.click()}>{t('library.import')}</Button>
           <Button onClick={() => void exportAll()} disabled={bookmarks.length === 0}>
-            Export
+            {t('library.export')}
           </Button>
           <input
             ref={fileInput}
@@ -196,40 +203,38 @@ export function BookmarksPage({ refreshToken = 0 }: { refreshToken?: number }) {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search title, tags, notes…"
+            placeholder={t('library.search')}
           />
         </label>
         <div className="filter-row">
           <select
-            aria-label="カテゴリで絞り込み"
+            aria-label={t('library.filter')}
             value={category}
             onChange={(event) => setCategory(event.target.value as CategoryFilter)}
           >
             {filterCategories.map((item) => (
-              <option key={item}>{item}</option>
+              <option key={item} value={item}>
+                {categoryLabel(item, locale)}
+              </option>
             ))}
           </select>
           <select
-            aria-label="保存日時で並べ替え"
+            aria-label={t('library.sort')}
             value={sort}
             onChange={(event) => setSort(event.target.value as SortOrder)}
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
+            <option value="newest">{t('library.newest')}</option>
+            <option value="oldest">{t('library.oldest')}</option>
           </select>
         </div>
       </div>
       {loading ? (
-        <div className="loading-state">Loading bookmarks…</div>
+        <div className="loading-state">{t('library.loading')}</div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title={
-            bookmarks.length === 0 ? 'Your reference library is empty' : 'No matching bookmarks'
-          }
+          title={bookmarks.length === 0 ? t('library.emptyTitle') : t('library.noMatch')}
           description={
-            bookmarks.length === 0
-              ? 'Inspect a design you like and save it here. Images and notes remain local to this browser.'
-              : '検索語またはカテゴリを変更してください。'
+            bookmarks.length === 0 ? t('library.emptyDescription') : t('library.noMatchDescription')
           }
         />
       ) : (
@@ -271,6 +276,14 @@ function ConfirmDelete({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useI18n();
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [onCancel]);
   return (
     <div
       className="dialog-backdrop"
@@ -286,14 +299,14 @@ function ConfirmDelete({
         aria-labelledby="delete-title"
         aria-describedby="delete-description"
       >
-        <h2 id="delete-title">Delete bookmark?</h2>
-        <p id="delete-description">
-          「{bookmark.title}」のメタデータ、元画像、サムネイルをこのブラウザから削除します。
-        </p>
+        <h2 id="delete-title">{t('library.deleteTitle')}</h2>
+        <p id="delete-description">{t('library.deleteDescription', { title: bookmark.title })}</p>
         <div className="form-actions">
-          <Button onClick={onCancel}>Cancel</Button>
+          <Button autoFocus onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
           <Button className="danger-button" onClick={onConfirm}>
-            Delete permanently
+            {t('library.deletePermanently')}
           </Button>
         </div>
       </section>

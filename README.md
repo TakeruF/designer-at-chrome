@@ -18,7 +18,8 @@
 - 検索、カテゴリフィルター、新旧順ソート、詳細、編集、削除
 - ZIPによるブックマーク・元画像・サムネイルのエクスポート／インポート
 - OS設定に追従するライト／ダークモードと手動切り替え
-- 初心者向けCSS用語説明（ローカル辞書）
+- 日本語／英語の表示切り替え（初回はChromeのUI言語を使用）
+- 初心者向けCSS用語説明とUI判定理由の日英ローカル辞書
 
 ## 技術構成
 
@@ -63,7 +64,8 @@ npm run build
 4. 「パッケージ化されていない拡張機能を読み込む」を選びます。
 5. このリポジトリの `dist/` フォルダを指定します。
 6. 通常の `http://` または `https://` ページを開き、ツールバーのUI Lensアイコンをクリックします。
-7. Side Panelの「Select element」を押し、ページ上の要素を選択します。
+7. 必要に応じて「このサイトを許可」を押します。許可は現在のサイト単位で、Chromeの確認後に保存されます。
+8. Side Panelの「要素を選択」を押し、ページ上の要素を選択します。
 
 コード変更後は再度 `npm run build` を実行し、`chrome://extensions` で拡張を再読み込みしてください。
 
@@ -95,7 +97,9 @@ npm run format:check
 | `scripting` | ユーザー操作後、現在のタブへInspector Content Scriptを注入するため       |
 | `tabs`      | アクティブタブの取得、表示領域の撮影、保存元ページを新しいタブで開くため |
 
-常時アクセスする `host_permissions` と `<all_urls>` は要求していません。Content Scriptはmanifestで全ページに常駐させず、ユーザーがツールバーアイコンをクリックして `activeTab` が有効になったタブへだけ注入します。
+`optional_host_permissions` には `http://*/*` と `https://*/*` を宣言していますが、インストール時に全サイトへのアクセスは要求しません。通常はツールバー操作で得る一時的な `activeTab` 権限を使います。別ドメインへ移動してSide Panelを使い続ける場合だけ、ユーザーが「このサイトを許可」を押した時点で、現在のoriginに限定した権限をChromeへ要求します。
+
+常時アクセスする `host_permissions` と `<all_urls>` は設定していません。Content Scriptはmanifestで全ページに常駐させず、ユーザー操作後の現在タブへだけ注入します。許可済みサイトはChromeの拡張機能設定からいつでも取り消せます。
 
 ## ローカル保存の仕組み
 
@@ -103,7 +107,7 @@ npm run format:check
 
 - ブックマークのメタデータ
 - 抽出したスタイル、構造、UIパターン判定結果
-- テーマと最後に開いたタブ
+- テーマ、表示言語、最後に開いたタブ
 
 ### IndexedDB (`ui-lens-images`)
 
@@ -123,7 +127,7 @@ images/{bookmarkId}.webp
 thumbnails/{bookmarkId}.webp
 ```
 
-インポート時はJSONを検証し、既存または同一アーカイブ内でIDが重複した場合に新しいUUIDを発行します。画像が欠けたレコードはスキップされ、不正なJSONで既存データを置き換えません。
+インポート時はJSONを検証し、既存または同一アーカイブ内でIDが重複した場合に新しいUUIDを発行します。画像が欠けたレコードはスキップされ、不正なJSONで既存データを置き換えません。MVPではZIPを250MB、1回のインポートを1,000件に制限し、途中失敗時はその処理で追加した画像をロールバックします。
 
 ## スクリーンショット処理
 
@@ -194,7 +198,9 @@ src/
     selector-generator.ts   # CSS Selector生成
     video-analyzer.ts       # 動画メタデータ抽出とプレイヤー範囲推定
   sidepanel/
-    App.tsx                 # タブ、テーマ、選択イベント連携
+    App.tsx                 # タブ、テーマ、言語、選択イベント連携
+    i18n.tsx                # 日本語／英語のローカル辞書とContext
+    host-permissions.ts     # 現在サイトに限定した任意権限要求
     components/             # Summary、詳細、カード、保存フォーム
     pages/                  # Inspect / Bookmarks
     hooks/                  # IndexedDB Blob用Object URL

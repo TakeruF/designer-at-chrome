@@ -93,6 +93,15 @@ describe('bookmark validation', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('rejects archives beyond the bounded import size', () => {
+    const result = validateImportArchive({
+      version: 1,
+      exportedAt: '2026-08-02T00:00:00.000Z',
+      bookmarks: Array.from({ length: 1001 }, (_, index) => validBookmark(`bookmark-${index}`)),
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it('validates captured video frame metadata', () => {
     const bookmark = {
       ...validBookmark(),

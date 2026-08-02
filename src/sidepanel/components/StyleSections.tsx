@@ -3,6 +3,7 @@ import { explainProperty } from '../../shared/glossary';
 import type { BoxEdges, ColorValue, ComputedStyleInfo } from '../../shared/types';
 import { CopyIcon } from './Icons';
 import { Accordion, Button } from './UI';
+import { useI18n } from '../i18n';
 
 interface PropertyRowProps {
   label: string;
@@ -11,18 +12,20 @@ interface PropertyRowProps {
 }
 
 function PropertyRow({ label, value, propertyName = label }: PropertyRowProps) {
+  const { locale } = useI18n();
   return (
     <div className="property-row">
       <div className="property-row__line">
         <span className="property-row__label">{label}</span>
         <code>{value || '—'}</code>
       </div>
-      <p>{explainProperty(propertyName, value)}</p>
+      <p>{explainProperty(propertyName, value, locale)}</p>
     </div>
   );
 }
 
 function ColorRow({ label, color }: { label: string; color: ColorValue }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(color.hex ?? color.css);
@@ -38,16 +41,18 @@ function ColorRow({ label, color }: { label: string; color: ColorValue }) {
       />
       <div className="color-row__value">
         <span>{label}</span>
-        <code>{color.hex ?? 'Not convertible'}</code>
+        <code>{color.hex ?? t('common.notConvertible')}</code>
         <small>
           {color.css}
-          {color.alpha < 1 ? ` · ${Math.round(color.alpha * 100)}% opacity` : ''}
+          {color.alpha < 1
+            ? ` · ${t('color.opacity', { value: Math.round(color.alpha * 100) })}`
+            : ''}
         </small>
       </div>
       <Button
         variant="icon"
-        aria-label={`${label}の色をコピー`}
-        title={copied ? 'Copied' : 'Copy color'}
+        aria-label={`${t('common.copy')}: ${label}`}
+        title={copied ? t('common.copied') : t('common.copy')}
         onClick={() => void copy()}
       >
         <CopyIcon />
@@ -57,11 +62,12 @@ function ColorRow({ label, color }: { label: string; color: ColorValue }) {
 }
 
 function BoxRows({ name, values }: { name: 'margin' | 'padding'; values: BoxEdges }) {
+  const { locale } = useI18n();
   return (
     <div className="box-values">
       <div className="box-values__head">
         <span>{name}</span>
-        <small>{explainProperty(name)}</small>
+        <small>{explainProperty(name, '', locale)}</small>
       </div>
       <div className="box-values__grid">
         {(['top', 'right', 'bottom', 'left'] as const).map((edge) => (
@@ -76,11 +82,16 @@ function BoxRows({ name, values }: { name: 'margin' | 'padding'; values: BoxEdge
 }
 
 export function StyleSections({ style }: { style: ComputedStyleInfo }) {
+  const { t } = useI18n();
   const { typography, colors, spacing, appearance, layout } = style;
   return (
     <div className="section-stack">
-      <div className="section-label">Design details</div>
-      <Accordion title="Typography" description="文字の階層と読みやすさ" defaultOpen>
+      <div className="section-label">{t('section.designDetails')}</div>
+      <Accordion
+        title={t('section.typography')}
+        description={t('section.typographyHelp')}
+        defaultOpen
+      >
         <PropertyRow label="font-family" value={typography.fontFamily} />
         <PropertyRow label="font-size" value={typography.fontSize} />
         <PropertyRow label="font-weight" value={typography.fontWeight} />
@@ -88,20 +99,20 @@ export function StyleSections({ style }: { style: ComputedStyleInfo }) {
         <PropertyRow label="letter-spacing" value={typography.letterSpacing} />
         <PropertyRow label="text-align" value={typography.textAlign} />
       </Accordion>
-      <Accordion title="Colors" description="役割ごとの色と透明度">
+      <Accordion title={t('section.colors')} description={t('section.colorsHelp')}>
         <div className="color-list">
-          <ColorRow label="Text" color={colors.text} />
-          <ColorRow label="Background" color={colors.background} />
-          <ColorRow label="Border" color={colors.border} />
+          <ColorRow label={t('color.text')} color={colors.text} />
+          <ColorRow label={t('color.background')} color={colors.background} />
+          <ColorRow label={t('color.border')} color={colors.border} />
         </div>
       </Accordion>
-      <Accordion title="Spacing" description="外側・内側・要素間の余白">
+      <Accordion title={t('section.spacing')} description={t('section.spacingHelp')}>
         <BoxRows name="margin" values={spacing.margin} />
         <BoxRows name="padding" values={spacing.padding} />
         <PropertyRow label="row-gap" propertyName="gap" value={spacing.rowGap} />
         <PropertyRow label="column-gap" propertyName="gap" value={spacing.columnGap} />
       </Accordion>
-      <Accordion title="Layout" description="配置方式と子要素の整列">
+      <Accordion title={t('section.layout')} description={t('section.layoutHelp')}>
         <PropertyRow label="display" value={layout.display} />
         <PropertyRow label="position" value={layout.position} />
         <PropertyRow label="flex-direction" value={layout.flexDirection} />
@@ -111,7 +122,7 @@ export function StyleSections({ style }: { style: ComputedStyleInfo }) {
         <PropertyRow label="overflow" value={layout.overflow} />
         <PropertyRow label="z-index" value={layout.zIndex} />
       </Accordion>
-      <Accordion title="Appearance" description="境界・角丸・影・透明度">
+      <Accordion title={t('section.appearance')} description={t('section.appearanceHelp')}>
         <PropertyRow label="border" value={appearance.border} />
         <PropertyRow label="border-radius" value={appearance.borderRadius} />
         <PropertyRow label="box-shadow" value={appearance.boxShadow} />

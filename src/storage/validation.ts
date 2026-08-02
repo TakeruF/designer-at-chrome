@@ -40,11 +40,15 @@ function isPattern(value: unknown): value is UIPatternResult {
     hasString(value, 'name') &&
     hasString(value, 'japaneseName') &&
     hasString(value, 'description') &&
+    (value.descriptionEn === undefined || typeof value.descriptionEn === 'string') &&
     typeof value.confidence === 'number' &&
     value.confidence >= 0 &&
     value.confidence <= 1 &&
     Array.isArray(value.reasons) &&
-    value.reasons.every((reason) => typeof reason === 'string')
+    value.reasons.every((reason) => typeof reason === 'string') &&
+    (value.reasonsEn === undefined ||
+      (Array.isArray(value.reasonsEn) &&
+        value.reasonsEn.every((reason) => typeof reason === 'string')))
   );
 }
 
@@ -203,6 +207,9 @@ export function validateImportArchive(value: unknown): ValidationResult<ImportAr
   }
   if (!Array.isArray(value.bookmarks)) {
     return { ok: false, errors: ['bookmarks must be an array.'] };
+  }
+  if (value.bookmarks.length > 1000) {
+    return { ok: false, errors: ['An archive may contain at most 1,000 bookmarks.'] };
   }
   const bookmarks: DesignBookmark[] = [];
   const errors: string[] = [];

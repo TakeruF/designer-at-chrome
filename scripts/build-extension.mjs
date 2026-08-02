@@ -3,7 +3,7 @@ import { build } from 'esbuild';
 const shared = {
   bundle: true,
   target: 'chrome120',
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   legalComments: 'none',
 };

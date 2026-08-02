@@ -67,7 +67,17 @@ async function handleMessage(message: ExtensionMessage): Promise<MessageResponse
     return { ok: true, data: await forwardToInspector(message) };
   } catch (caught) {
     const messageText = caught instanceof Error ? caught.message : '不明なエラーが発生しました。';
-    const restricted = messageText.includes('このページ') || messageText.includes('Cannot access');
+    const hostPermissionRequired =
+      /Cannot access contents|manifest must request permission|Cannot access page/i.test(
+        messageText,
+      );
+    if (hostPermissionRequired) {
+      return error(
+        'HOST_PERMISSION_REQUIRED',
+        'This site needs permission before UI Lens can inspect it.',
+      );
+    }
+    const restricted = messageText.includes('このページ');
     return error(restricted ? 'RESTRICTED_PAGE' : 'UNKNOWN', messageText);
   }
 }

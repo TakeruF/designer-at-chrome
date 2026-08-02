@@ -15,6 +15,7 @@ import type {
 import { addBookmark } from '../../storage/bookmark-storage';
 import { deleteScreenshot } from '../../storage/screenshot-db';
 import { Button, Notice } from './UI';
+import { categoryLabel, useI18n } from '../i18n';
 
 const categories: BookmarkCategory[] = [
   'Header',
@@ -29,27 +30,7 @@ const categories: BookmarkCategory[] = [
   'Other',
 ];
 
-const captureModes: Array<{
-  value: VideoCaptureMode;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: 'current-frame',
-    label: 'Current frame',
-    description: 'video要素の表示領域だけ',
-  },
-  {
-    value: 'video-player',
-    label: 'Video player',
-    description: '動画とカスタムコントロール',
-  },
-  {
-    value: 'selected-element',
-    label: 'Entire selected element',
-    description: '現在選択中のセクション全体',
-  },
-];
+const captureModes: VideoCaptureMode[] = ['current-frame', 'video-player', 'selected-element'];
 
 function initialCategory(pattern: string): BookmarkCategory {
   if (/header/i.test(pattern)) return 'Header';
@@ -72,6 +53,7 @@ export function SaveBookmarkForm({
   onCancel: () => void;
   onSaved: (bookmark: DesignBookmark) => void;
 }) {
+  const { locale, t } = useI18n();
   const domain = useMemo(() => {
     try {
       return new URL(selection.pageUrl).hostname;
@@ -227,7 +209,7 @@ export function SaveBookmarkForm({
 
   const save = async () => {
     if (!draft.title.trim()) {
-      setError('タイトルを入力してください。');
+      setError(t('detail.titleRequired'));
       return;
     }
     setSaving(true);
@@ -296,8 +278,8 @@ export function SaveBookmarkForm({
     <section className="bookmark-form" aria-labelledby="save-bookmark-title">
       <div className="bookmark-form__head">
         <div>
-          <div className="section-label">Local bookmark</div>
-          <h2 id="save-bookmark-title">{isVideo ? 'Save video design' : 'Save this design'}</h2>
+          <div className="section-label">{t('save.eyebrow')}</div>
+          <h2 id="save-bookmark-title">{isVideo ? t('save.videoTitle') : t('save.title')}</h2>
         </div>
         <span>
           {selection.viewportRect.width} × {selection.viewportRect.height}
@@ -308,8 +290,8 @@ export function SaveBookmarkForm({
         <section className="video-capture-settings" aria-labelledby="video-settings-title">
           <div className="video-settings__head">
             <div>
-              <span className="video-badge">Video Content</span>
-              <h3 id="video-settings-title">Capture range</h3>
+              <span className="video-badge">{t('inspect.video')}</span>
+              <h3 id="video-settings-title">{t('save.range')}</h3>
             </div>
             <code>
               {formatMediaTime(selection.media.currentTime)}
@@ -319,26 +301,40 @@ export function SaveBookmarkForm({
             </code>
           </div>
           <div className="capture-mode-list">
-            {captureModes.map((mode) => (
-              <label key={mode.value} className="capture-mode">
-                <input
-                  type="radio"
-                  name="capture-mode"
-                  value={mode.value}
-                  checked={captureMode === mode.value}
-                  onChange={() => void changeCaptureMode(mode.value)}
-                />
-                <span>
-                  <strong>{mode.label}</strong>
-                  <small>{mode.description}</small>
-                </span>
-              </label>
-            ))}
+            {captureModes.map((mode) => {
+              const labelKey =
+                mode === 'current-frame'
+                  ? 'save.currentFrame'
+                  : mode === 'video-player'
+                    ? 'save.player'
+                    : 'save.selected';
+              const helpKey =
+                mode === 'current-frame'
+                  ? 'save.currentFrameHelp'
+                  : mode === 'video-player'
+                    ? 'save.playerHelp'
+                    : 'save.selectedHelp';
+              return (
+                <label key={mode} className="capture-mode">
+                  <input
+                    type="radio"
+                    name="capture-mode"
+                    value={mode}
+                    checked={captureMode === mode}
+                    onChange={() => void changeCaptureMode(mode)}
+                  />
+                  <span>
+                    <strong>{t(labelKey)}</strong>
+                    <small>{t(helpKey)}</small>
+                  </span>
+                </label>
+              );
+            })}
           </div>
           {capturePreview ? (
             <div className="capture-preview">
               <div>
-                <span>Outlined range</span>
+                <span>{t('save.outlined')}</span>
                 <code>
                   &lt;{capturePreview.tagName}&gt; · {Math.round(capturePreview.rect.width)} ×{' '}
                   {Math.round(capturePreview.rect.height)}
@@ -349,13 +345,13 @@ export function SaveBookmarkForm({
                   disabled={!capturePreview.canSelectParent}
                   onClick={() => void moveCaptureTarget('parent')}
                 >
-                  Parent
+                  {t('inspect.parent')}
                 </Button>
                 <Button
                   disabled={!capturePreview.canSelectChild}
                   onClick={() => void moveCaptureTarget('child')}
                 >
-                  Child
+                  {t('inspect.child')}
                 </Button>
               </div>
             </div>
@@ -367,8 +363,8 @@ export function SaveBookmarkForm({
               onChange={(event) => setPauseWhileCapturing(event.target.checked)}
             />
             <span>
-              <strong>Pause while capturing</strong>
-              <small>撮影後は元の再生状態へ戻します</small>
+              <strong>{t('save.pause')}</strong>
+              <small>{t('save.pauseHelp')}</small>
             </span>
           </label>
           <label className="setting-toggle">
@@ -378,8 +374,8 @@ export function SaveBookmarkForm({
               onChange={(event) => setIncludePlayerControls(event.target.checked)}
             />
             <span>
-              <strong>Include player controls</strong>
-              <small>マウス移動イベントで表示を試みます</small>
+              <strong>{t('save.controls')}</strong>
+              <small>{t('save.controlsHelp')}</small>
             </span>
           </label>
         </section>
@@ -387,26 +383,24 @@ export function SaveBookmarkForm({
 
       {pendingProtected ? (
         <div className="protected-warning" role="alert">
-          <strong>動画フレームを取得できませんでした</strong>
-          <p>
-            この動画はブラウザまたは配信サービスによって保護されている可能性があります。プレイヤー周辺のUIは保存できます。
-          </p>
+          <strong>{t('save.protectedTitle')}</strong>
+          <p>{t('save.protectedDescription')}</p>
           <div>
             <Button onClick={() => void resolveProtectedContent('player-ui')} disabled={saving}>
-              プレイヤーUIだけ保存
+              {t('save.playerOnly')}
             </Button>
             <Button onClick={() => void resolveProtectedContent('placeholder')} disabled={saving}>
-              プレースホルダーで保存
+              {t('save.placeholder')}
             </Button>
             <Button onClick={() => void resolveProtectedContent('cancel')} disabled={saving}>
-              保存をキャンセル
+              {t('save.cancelProtected')}
             </Button>
           </div>
         </div>
       ) : null}
 
       <label className="field">
-        <span>Title</span>
+        <span>{t('field.title')}</span>
         <input
           value={draft.title}
           onChange={(event) => setDraft({ ...draft, title: event.target.value })}
@@ -415,7 +409,7 @@ export function SaveBookmarkForm({
       </label>
       <div className="field-row">
         <label className="field">
-          <span>Category</span>
+          <span>{t('field.category')}</span>
           <select
             value={draft.category}
             onChange={(event) =>
@@ -423,12 +417,14 @@ export function SaveBookmarkForm({
             }
           >
             {categories.map((category) => (
-              <option key={category}>{category}</option>
+              <option key={category} value={category}>
+                {categoryLabel(category, locale)}
+              </option>
             ))}
           </select>
         </label>
         <label className="field">
-          <span>Tags</span>
+          <span>{t('field.tags')}</span>
           <input
             value={tagText}
             onChange={(event) => setTagText(event.target.value)}
@@ -437,11 +433,11 @@ export function SaveBookmarkForm({
         </label>
       </div>
       <label className="field">
-        <span>Memo</span>
+        <span>{t('field.memo')}</span>
         <textarea
           value={draft.note}
           onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-          placeholder="このデザインから学びたいこと"
+          placeholder={t('field.memoPlaceholder')}
           rows={3}
         />
       </label>
@@ -449,18 +445,14 @@ export function SaveBookmarkForm({
       {!pendingProtected ? (
         <div className="form-actions">
           <Button onClick={() => void cancelForm()} disabled={saving}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" onClick={() => void save()} disabled={saving}>
-            {saving ? 'Capturing…' : isVideo ? 'Save video design' : 'Save bookmark'}
+            {saving ? t('save.capture') : isVideo ? t('save.videoTitle') : t('inspect.save')}
           </Button>
         </div>
       ) : null}
-      <p className="privacy-note">
-        {isVideo
-          ? '現在フレームの静止画とメタデータだけを保存します。動画URLや動画ファイルは保存しません。'
-          : 'Screenshot and metadata stay in this browser.'}
-      </p>
+      <p className="privacy-note">{isVideo ? t('save.videoPrivacy') : t('save.privacy')}</p>
     </section>
   );
 }

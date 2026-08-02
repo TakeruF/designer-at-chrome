@@ -1,10 +1,20 @@
-import type { DesignBookmark, ThemePreference, UIState } from '../shared/types';
+import type { DesignBookmark, SupportedLocale, ThemePreference, UIState } from '../shared/types';
 import { validateBookmarkData } from './validation';
 
 const BOOKMARKS_KEY = 'uiLens.bookmarks.v1';
 const UI_STATE_KEY = 'uiLens.uiState.v1';
 
-const defaultUIState: UIState = { activeTab: 'inspect', theme: 'system' };
+export function localeFromLanguage(language: string): SupportedLocale {
+  return language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
+}
+
+function defaultUIState(): UIState {
+  return {
+    activeTab: 'inspect',
+    theme: 'system',
+    locale: localeFromLanguage(chrome.i18n.getUILanguage()),
+  };
+}
 
 export async function getBookmarks(): Promise<DesignBookmark[]> {
   const result = await chrome.storage.local.get(BOOKMARKS_KEY);
@@ -50,14 +60,16 @@ export async function removeBookmark(id: string): Promise<void> {
 export async function getUIState(): Promise<UIState> {
   const result = await chrome.storage.local.get(UI_STATE_KEY);
   const raw: unknown = result[UI_STATE_KEY];
-  if (!raw || typeof raw !== 'object') return defaultUIState;
+  if (!raw || typeof raw !== 'object') return defaultUIState();
   const value = raw as Partial<UIState>;
   const activeTab = value.activeTab === 'bookmarks' ? 'bookmarks' : 'inspect';
   const themes: ThemePreference[] = ['system', 'light', 'dark'];
   const theme = themes.includes(value.theme as ThemePreference)
     ? (value.theme as ThemePreference)
     : 'system';
-  return { activeTab, theme };
+  const locale: SupportedLocale =
+    value.locale === 'ja' || value.locale === 'en' ? value.locale : defaultUIState().locale;
+  return { activeTab, theme, locale };
 }
 
 export async function setUIState(state: UIState): Promise<void> {

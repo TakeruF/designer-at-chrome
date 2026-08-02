@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "UI Lens — Design Inspector"
+  },
+  "extensionDescription": {
+    "message": "Inspect and locally bookmark UI patterns from the websites you visit."
+  },
+  "actionTitle": {
+    "message": "Open UI Lens"
+  }
+}
