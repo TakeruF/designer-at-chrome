@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "UI Lens — Design Inspector",
+  "version": "0.1.0",
+  "description": "Inspect and locally bookmark UI patterns from the websites you visit.",
+  "permissions": ["sidePanel", "storage", "activeTab", "scripting", "tabs"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open UI Lens"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
