@@ -4,6 +4,7 @@ import type {
   ComputedStyleInfo,
   DesignBookmark,
   UIPatternResult,
+  VideoBookmarkMetadata,
 } from '../shared/types';
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; errors: string[] };
@@ -96,6 +97,34 @@ function isStyle(value: unknown): value is ComputedStyleInfo {
   );
 }
 
+function isFiniteNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isVideoMetadata(value: unknown): value is VideoBookmarkMetadata {
+  return (
+    isRecord(value) &&
+    value.containsVideo === true &&
+    Number.isInteger(value.videoCount) &&
+    isFiniteNonNegativeNumber(value.videoCount) &&
+    value.videoCount > 0 &&
+    isFiniteNonNegativeNumber(value.currentTime) &&
+    (value.duration === null || isFiniteNonNegativeNumber(value.duration)) &&
+    typeof value.paused === 'boolean' &&
+    typeof value.muted === 'boolean' &&
+    isFiniteNonNegativeNumber(value.videoWidth) &&
+    isFiniteNonNegativeNumber(value.videoHeight) &&
+    isFiniteNonNegativeNumber(value.displayedWidth) &&
+    isFiniteNonNegativeNumber(value.displayedHeight) &&
+    (value.aspectRatio === null || isFiniteNonNegativeNumber(value.aspectRatio)) &&
+    typeof value.nativeControls === 'boolean' &&
+    typeof value.subtitlesDetected === 'boolean' &&
+    ['current-frame', 'video-player', 'selected-element'].includes(value.captureMode as string) &&
+    typeof value.controlsIncluded === 'boolean' &&
+    (value.captureLimitation === null || typeof value.captureLimitation === 'string')
+  );
+}
+
 export function validateBookmarkData(value: unknown): ValidationResult<DesignBookmark> {
   const errors: string[] = [];
   if (!isRecord(value)) return { ok: false, errors: ['Bookmark must be an object.'] };
@@ -122,6 +151,9 @@ export function validateBookmarkData(value: unknown): ValidationResult<DesignBoo
   }
   if (!isPattern(value.uiPattern)) errors.push('uiPattern is invalid.');
   if (!isStyle(value.style)) errors.push('style is invalid.');
+  if (value.video !== undefined && !isVideoMetadata(value.video)) {
+    errors.push('video is invalid.');
+  }
   if (
     !isRecord(value.element) ||
     !hasStringFields(value.element, ['tagName', 'text']) ||

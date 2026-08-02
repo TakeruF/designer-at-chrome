@@ -91,6 +91,48 @@ export interface ViewportRect {
   height: number;
 }
 
+export type VideoCaptureMode = 'current-frame' | 'video-player' | 'selected-element';
+
+export type ProtectedContentHandling = 'prompt' | 'player-ui' | 'placeholder';
+
+export interface VideoElementInfo {
+  containsVideo: true;
+  videoCount: number;
+  currentTime: number;
+  duration: number | null;
+  paused: boolean;
+  muted: boolean;
+  videoWidth: number;
+  videoHeight: number;
+  displayedWidth: number;
+  displayedHeight: number;
+  aspectRatio: number | null;
+  nativeControls: boolean;
+  subtitlesDetected: boolean;
+}
+
+export interface VideoBookmarkMetadata extends VideoElementInfo {
+  captureMode: VideoCaptureMode;
+  controlsIncluded: boolean;
+  captureLimitation: string | null;
+}
+
+export interface VideoCaptureOptions {
+  captureMode: VideoCaptureMode;
+  pauseWhileCapturing: boolean;
+  includePlayerControls: boolean;
+  protectedContentHandling: ProtectedContentHandling;
+}
+
+export interface CaptureTargetPreview {
+  captureMode: VideoCaptureMode;
+  tagName: string;
+  cssSelector: string;
+  rect: ViewportRect;
+  canSelectParent: boolean;
+  canSelectChild: boolean;
+}
+
 export interface SelectedElementInfo {
   pattern: UIPatternResult;
   tagName: string;
@@ -107,6 +149,7 @@ export interface SelectedElementInfo {
   pageUrl: string;
   pageTitle: string;
   faviconUrl: string | null;
+  media: VideoElementInfo | null;
 }
 
 export interface ScreenshotMetadata {
@@ -134,6 +177,7 @@ export interface DesignBookmark {
   element: Pick<SelectedElementInfo, 'tagName' | 'role' | 'id' | 'classNames' | 'text'>;
   style: ComputedStyleInfo;
   screenshot: ScreenshotMetadata;
+  video?: VideoBookmarkMetadata;
 }
 
 export interface StoredScreenshot {
@@ -152,6 +196,8 @@ export interface CapturePreparation {
   visibleRect: ViewportRect;
   devicePixelRatio: number;
   clippedToViewport: boolean;
+  videoVisibleRect: ViewportRect | null;
+  videoMetadata: VideoBookmarkMetadata | null;
 }
 
 export interface CaptureStoredResult {
@@ -159,6 +205,9 @@ export interface CaptureStoredResult {
   width: number;
   height: number;
   clippedToViewport: boolean;
+  videoMetadata: VideoBookmarkMetadata | null;
+  protectedContentSuspected: boolean;
+  restoreWarnings: string[];
 }
 
 export interface ExtensionError {
@@ -178,10 +227,13 @@ export type ExtensionMessage =
   | { type: 'RESELECT_ELEMENT' }
   | { type: 'MOVE_SELECTION'; direction: 'parent' | 'child' }
   | { type: 'GET_SELECTION' }
-  | { type: 'CAPTURE_PREPARE' }
+  | { type: 'SET_CAPTURE_TARGET'; captureMode: VideoCaptureMode }
+  | { type: 'MOVE_CAPTURE_TARGET'; direction: 'parent' | 'child' }
+  | { type: 'CLEAR_CAPTURE_TARGET' }
+  | { type: 'CAPTURE_PREPARE'; options?: VideoCaptureOptions }
   | { type: 'CAPTURE_RESTORE' }
   | { type: 'ELEMENT_SELECTED'; payload: SelectedElementInfo }
-  | { type: 'CAPTURE_AND_STORE'; bookmarkId: string };
+  | { type: 'CAPTURE_AND_STORE'; bookmarkId: string; options?: VideoCaptureOptions };
 
 export type MessageResponse<T = undefined> =
   { ok: true; data: T } | { ok: false; error: ExtensionError };

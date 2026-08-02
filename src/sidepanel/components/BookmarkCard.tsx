@@ -1,6 +1,7 @@
+import { formatMediaTime } from '../../shared/media-utils';
 import type { DesignBookmark } from '../../shared/types';
 import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
-import { ExternalIcon } from './Icons';
+import { ExternalIcon, VideoIcon } from './Icons';
 import { Button } from './UI';
 
 function domain(url: string): string {
@@ -48,6 +49,14 @@ export function BookmarkCard({
         {bookmark.screenshot.clippedToViewport ? (
           <span className="crop-label">Visible area</span>
         ) : null}
+        {bookmark.video ? (
+          <span className="frame-label">
+            <VideoIcon /> Video frame · {formatMediaTime(bookmark.video.currentTime)}
+            {bookmark.video.duration === null
+              ? ''
+              : ` / ${formatMediaTime(bookmark.video.duration)}`}
+          </span>
+        ) : null}
       </button>
       <div className="bookmark-card__body">
         <div className="bookmark-card__meta">
@@ -61,6 +70,11 @@ export function BookmarkCard({
           <span>{domain(bookmark.sourceUrl).slice(0, 1).toUpperCase()}</span>
           {domain(bookmark.sourceUrl)}
         </div>
+        {bookmark.video?.captureLimitation ? (
+          <div className="bookmark-card__warning" title={bookmark.video.captureLimitation}>
+            Capture limitation
+          </div>
+        ) : null}
         {bookmark.tags.length > 0 ? (
           <div className="tag-list">
             {bookmark.tags.slice(0, 3).map((tag) => (

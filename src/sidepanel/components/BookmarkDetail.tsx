@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatMediaTime } from '../../shared/media-utils';
 import type { BookmarkCategory, DesignBookmark } from '../../shared/types';
 import { updateBookmark } from '../../storage/bookmark-storage';
 import { useScreenshotUrl } from '../hooks/useScreenshotUrl';
@@ -159,6 +160,58 @@ export function BookmarkDetail({
             </div>
           ) : null}
           {bookmark.note ? <p className="detail-note">{bookmark.note}</p> : null}
+          {bookmark.video ? (
+            <div className="media-frame-info">
+              <div>
+                <span>Captured frame</span>
+                <strong>
+                  {formatMediaTime(bookmark.video.currentTime)}
+                  {bookmark.video.duration === null
+                    ? ''
+                    : ` / ${formatMediaTime(bookmark.video.duration)}`}
+                </strong>
+              </div>
+              <div>
+                <span>Video resolution</span>
+                <strong>
+                  {bookmark.video.videoWidth || '—'} × {bookmark.video.videoHeight || '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Displayed size</span>
+                <strong>
+                  {Math.round(bookmark.video.displayedWidth)} ×{' '}
+                  {Math.round(bookmark.video.displayedHeight)}
+                </strong>
+              </div>
+              <div>
+                <span>Aspect ratio</span>
+                <strong>{bookmark.video.aspectRatio?.toFixed(2) ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Capture area</span>
+                <strong>{bookmark.video.captureMode.replaceAll('-', ' ')}</strong>
+              </div>
+              <div>
+                <span>Player controls</span>
+                <strong>{bookmark.video.controlsIncluded ? 'Included' : 'Not included'}</strong>
+              </div>
+              <div>
+                <span>Playback state</span>
+                <strong>
+                  {bookmark.video.paused ? 'Paused' : 'Playing'} ·{' '}
+                  {bookmark.video.muted ? 'Muted' : 'Sound on'}
+                </strong>
+              </div>
+              <div>
+                <span>Subtitles</span>
+                <strong>{bookmark.video.subtitlesDetected ? 'Detected' : 'Not detected'}</strong>
+              </div>
+              {bookmark.video.captureLimitation ? (
+                <p className="media-frame-info__notice">{bookmark.video.captureLimitation}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="pattern-line">
             <div>
               <span>Detected pattern</span>

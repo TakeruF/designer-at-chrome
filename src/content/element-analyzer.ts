@@ -2,6 +2,7 @@ import { extractComputedStyle } from '../shared/style-utils';
 import type { SelectedElementInfo, ViewportRect } from '../shared/types';
 import { detectUIPattern } from './pattern-detector';
 import { generateCssSelector } from './selector-generator';
+import { analyzeVideo } from './video-analyzer';
 
 const rounded = (value: number) => Math.round(value * 100) / 100;
 
@@ -44,5 +45,6 @@ export function analyzeElement(element: Element): SelectedElementInfo {
     pageUrl: location.href,
     pageTitle: document.title,
     faviconUrl: findFavicon(),
+    media: analyzeVideo(element),
   };
 }

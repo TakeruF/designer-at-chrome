@@ -59,7 +59,10 @@ async function handleMessage(message: ExtensionMessage): Promise<MessageResponse
     if (message.type === 'CAPTURE_AND_STORE') {
       const tab = await activeTab();
       await ensureInspector(tab.id as number);
-      return { ok: true, data: await captureAndStore(tab, message.bookmarkId) };
+      return {
+        ok: true,
+        data: await captureAndStore(tab, message.bookmarkId, message.options),
+      };
     }
     return { ok: true, data: await forwardToInspector(message) };
   } catch (caught) {

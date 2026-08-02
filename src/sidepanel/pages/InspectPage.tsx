@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatMediaTime } from '../../shared/media-utils';
 import { sendRuntimeMessage } from '../../shared/messages';
 import type { DesignBookmark, SelectedElementInfo } from '../../shared/types';
 import { SaveBookmarkForm } from '../components/SaveBookmarkForm';
@@ -89,6 +90,7 @@ export function InspectPage({
       <section className="summary" aria-labelledby="selection-name">
         <div className="summary__eyebrow">
           <span className="status-dot" /> Selected element
+          {selection.media ? <span className="video-badge">Video Content</span> : null}
         </div>
         <h1 id="selection-name">{selection.pattern.name}</h1>
         <div className="summary__japanese">{selection.pattern.japaneseName}</div>
@@ -121,6 +123,26 @@ export function InspectPage({
               {selection.computedStyle.typography.fontWeight}
             </strong>
           </div>
+          {selection.media ? (
+            <>
+              <div>
+                <span>At selection</span>
+                <strong>
+                  {formatMediaTime(selection.media.currentTime)}
+                  {selection.media.duration === null
+                    ? ''
+                    : ` / ${formatMediaTime(selection.media.duration)}`}
+                </strong>
+              </div>
+              <div>
+                <span>Video source</span>
+                <strong>
+                  {selection.media.videoWidth || '—'} × {selection.media.videoHeight || '—'}
+                  {selection.media.paused ? ' · Paused' : ' · Playing'}
+                </strong>
+              </div>
+            </>
+          ) : null}
           <div className="summary__color">
             <span>Primary color</span>
             <strong>
@@ -139,7 +161,7 @@ export function InspectPage({
         />
       ) : (
         <Button variant="primary" className="save-button" onClick={() => setShowSave(true)}>
-          Save bookmark
+          {selection.media ? 'Save video frame' : 'Save bookmark'}
         </Button>
       )}
 

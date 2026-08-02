@@ -2,6 +2,7 @@ export class InspectorOverlay {
   private readonly host: HTMLDivElement;
   private readonly hoverBox: HTMLDivElement;
   private readonly selectedBox: HTMLDivElement;
+  private readonly captureBox: HTMLDivElement;
 
   constructor() {
     this.host = document.createElement('div');
@@ -18,7 +19,8 @@ export class InspectorOverlay {
     const shadow = this.host.attachShadow({ mode: 'closed' });
     this.hoverBox = this.makeBox('rgba(37, 99, 235, 0.14)', '#2563EB', '1px dashed');
     this.selectedBox = this.makeBox('rgba(37, 99, 235, 0.08)', '#2563EB', '2px solid');
-    shadow.append(this.hoverBox, this.selectedBox);
+    this.captureBox = this.makeBox('rgba(37, 99, 235, 0.04)', '#2563EB', '2px dashed');
+    shadow.append(this.hoverBox, this.selectedBox, this.captureBox);
     document.documentElement.append(this.host);
   }
 
@@ -60,6 +62,14 @@ export class InspectorOverlay {
 
   hideSelected(): void {
     this.selectedBox.style.display = 'none';
+  }
+
+  showCapture(element: Element): void {
+    this.position(this.captureBox, element);
+  }
+
+  hideCapture(): void {
+    this.captureBox.style.display = 'none';
   }
 
   hideAll(): void {

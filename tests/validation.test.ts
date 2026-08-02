@@ -92,6 +92,34 @@ describe('bookmark validation', () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it('validates captured video frame metadata', () => {
+    const bookmark = {
+      ...validBookmark(),
+      video: {
+        containsVideo: true,
+        videoCount: 1,
+        currentTime: 42.5,
+        duration: 120,
+        paused: true,
+        muted: false,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        displayedWidth: 960,
+        displayedHeight: 540,
+        aspectRatio: 16 / 9,
+        nativeControls: true,
+        subtitlesDetected: true,
+        captureMode: 'current-frame',
+        controlsIncluded: false,
+        captureLimitation: null,
+      },
+    };
+    expect(validateBookmarkData(bookmark).ok).toBe(true);
+    expect(
+      validateBookmarkData({ ...bookmark, video: { ...bookmark.video, currentTime: -1 } }).ok,
+    ).toBe(false);
+  });
 });
 
 describe('import id collision handling', () => {

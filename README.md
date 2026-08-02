@@ -10,6 +10,10 @@
 - Basic、Typography、Colors、Spacing、Appearance、Layout、Structureの抽出
 - HTML・ARIA・CSS・位置・子要素を使うローカルのルールベースUIパターン判定
 - 選択要素の表示範囲だけをWebPで切り抜く高DPI対応スクリーンショット
+- `video` または動画を含む領域を、現在フレーム／プレイヤー全体／選択範囲から選んで記録
+- 動画のタイムコード、解像度、字幕・コントロール情報と撮影上の制約を保存
+- カスタムプレイヤー範囲の推定、撮影範囲の親子移動、任意の一時停止と状態復元
+- 保護動画らしい黒／透明フレームの検出と、周辺UI／プレースホルダーによる代替保存
 - タイトル、カテゴリ、タグ、メモ付きローカルブックマーク
 - 検索、カテゴリフィルター、新旧順ソート、詳細、編集、削除
 - ZIPによるブックマーク・元画像・サムネイルのエクスポート／インポート
@@ -79,6 +83,7 @@ npm run format:check
 - CSS Selector生成
 - ブックマークおよびインポートデータのバリデーション
 - インポート時のID重複解決
+- 動画フレーム時刻の表示、プレイヤー範囲スコアリング、保護コンテンツ候補のピクセル判定
 
 ## 使用権限と理由
 
@@ -123,13 +128,18 @@ thumbnails/{bookmarkId}.webp
 ## スクリーンショット処理
 
 1. Content Scriptで選択要素の `getBoundingClientRect()` と `devicePixelRatio` を取得
-2. 選択／ホバーオーバーレイを一時的に非表示
-3. `chrome.tabs.captureVisibleTab()` で現在のviewportを撮影
-4. Service Workerの `OffscreenCanvas` でDPRを考慮して切り抜き
-5. WebP（quality 0.85）と最大幅400pxのサムネイルを生成
-6. BlobをIndexedDBへ保存し、オーバーレイを復元
+2. 動画を含む場合は撮影範囲と現在位置を記録し、設定に応じて再生中の動画を一時停止
+3. 選択／ホバーオーバーレイを一時的に非表示
+4. `chrome.tabs.captureVisibleTab()` で現在のviewportを撮影
+5. Service Workerの `OffscreenCanvas` でDPRを考慮して切り抜き
+6. WebP（quality 0.85）と最大幅400pxのサムネイルを生成
+7. BlobをIndexedDBへ保存し、オーバーレイと元の動画再生状態を復元
 
-要素がviewport外へはみ出す場合は見えている範囲だけを保存し、`clippedToViewport` フラグとUI上の注記を残します。
+要素がviewport外へはみ出す場合は見えている範囲だけを保存し、`clippedToViewport` フラグとUI上の注記を残します。動画は現在フレーム、プレイヤーUI全体、選択中のセクションから範囲を選べます。撮影中だけ一時停止した動画は、撮影完了後に元の再生状態へ戻します。
+
+動画の撮影にも `video` をCanvasへ直接描く方式は使いません。通常要素と同じくタブ全体を撮影して切り抜くため、現在フレーム、字幕、カスタムコントロール、周辺レイアウトを表示どおりに保存できます。`Include player controls` はDOM属性を書き換えず、マウス移動イベントで既存コントロールの表示だけを試みます。動画URLや動画ファイルは保存しません。
+
+動画領域の大部分が黒または透明の場合は保護コンテンツの可能性を警告し、プレイヤー周辺UIだけを保存、動画領域をプレースホルダーにして保存、またはキャンセルを選べます。DRMやEncrypted Media Extensionsを回避する処理は行いません。
 
 ## プライバシー方針
 
@@ -146,7 +156,10 @@ thumbnails/{bookmarkId}.webp
 - open Shadow DOMはイベントのcomposed pathとShadow Root単位のセレクタ表現で可能な範囲に対応します。closed Shadow DOM内部はWebプラットフォームの制約により完全には取得できません。
 - 複数回スクロールして結合するフル要素／フルページ撮影は行いません。
 - `chrome://`、Chrome Web Store、ブラウザ内部ページ、他の拡張ページなど、スクリプト注入が禁止されたページは検査できません。Side Panelに理由を表示します。
-- Canvas描画制限やブラウザ固有の合成処理により、動画、WebGL、保護コンテンツの一部が期待通り撮影されない場合があります。
+- 通常のHTML動画は現在フレーム、タイムコード、動画解像度、表示サイズ、再生・ミュート状態、字幕検出結果などを保存します。複数動画を含む選択範囲では先頭の表示動画を主要対象にします。
+- DRM保護動画、Encrypted Media Extensions、ハードウェアオーバーレイ、WebGL合成動画などは映像自体を取得できない場合があります。黒画面検出はヒューリスティックのため、暗い映像を保護コンテンツと判定することがあります。
+- 非表示のネイティブ／カスタムコントロールはサイト側の実装によって表示できない場合があります。ページDOMを強引に変更せず、動画フレームの保存を続行します。
+- 一時停止前の `currentTime`、volume、mutedは変更しません。自動再生制限で撮影後の再開に失敗した場合は、保存メタデータに制限事項として記録します。
 - ルールベース判定は最も可能性の高い候補を返すヒューリスティックです。曖昧な要素ではconfidenceを低く表示します。
 - ブラウザ同期は行わず、データはChromeプロフィール単位です。移行にはZIPエクスポートを利用してください。
 - SPAのURL変更ではContent Scriptを再登録せず現在のDOMを継続して検査しますが、選択要素自体が再描画で破棄された場合は再選択が必要です。
@@ -172,12 +185,14 @@ src/
   background/
     service-worker.ts       # Side Panel連携、権限境界、Content Script注入
     screenshot.ts           # viewport撮影、DPR切り抜き、WebP生成
+    protected-content.ts    # 黒／透明な動画領域の保護コンテンツ推定
   content/
     inspector.ts            # 選択モード、イベント、親子履歴、メッセージ処理
     overlay.ts              # Shadow DOM内のホバー／固定アウトライン
     element-analyzer.ts     # Basic・computed style抽出
     pattern-detector.ts     # ルールベースUI名称推定
     selector-generator.ts   # CSS Selector生成
+    video-analyzer.ts       # 動画メタデータ抽出とプレイヤー範囲推定
   sidepanel/
     App.tsx                 # タブ、テーマ、選択イベント連携
     components/             # Summary、詳細、カード、保存フォーム
@@ -193,5 +208,6 @@ src/
     types.ts                # 型定義とdiscriminated unionメッセージ
     messages.ts             # 型付きメッセージ送信
     color-utils.ts          # CSS色変換
+    media-utils.ts          # 動画タイムコード表示
     glossary.ts             # 初心者向けローカル辞書
 ```

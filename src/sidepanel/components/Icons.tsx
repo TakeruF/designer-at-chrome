@@ -91,6 +91,21 @@ export function ExternalIcon(props: IconProps) {
   );
 }
 
+export function VideoIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props} aria-hidden="true">
+      <rect x="3" y="5" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="m17 10 4-2v8l-4-2v-4Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="m9 9 4 3-4 3V9Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <svg {...base} {...props} aria-hidden="true">

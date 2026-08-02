@@ -67,6 +67,7 @@ const patternCopy: Record<string, [string, string]> = {
   Breadcrumb: ['パンくずリスト', '現在位置までの階層を示すナビゲーションです。'],
   Table: ['テーブル', '行と列で構造化されたデータを表示します。'],
   'List Item': ['リスト項目', 'リストを構成する1つの項目です。'],
+  'Video Frame': ['動画フレーム', '動画の現在の再生位置を静止画として記録する対象です。'],
   Section: ['セクション', 'ページ内容を意味のある単位に分ける領域です。'],
   'Unknown Element': ['不明な要素', '既知のUIパターンとして強く判定できない要素です。'],
 };
@@ -104,6 +105,10 @@ export function detectPatternFromFeatures(features: PatternFeatures): UIPatternR
 
   if (features.tag === 'footer' || features.role === 'contentinfo') {
     add('Footer', 0.98, ['footer要素またはcontentinfoロールを持つ']);
+  }
+
+  if (features.tag === 'video') {
+    add('Video Frame', 0.99, ['video要素である', '現在の再生フレームを撮影できる']);
   }
 
   if (

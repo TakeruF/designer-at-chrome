@@ -1,18 +1,39 @@
 import { isExtensionMessage } from '../shared/messages';
 import type {
   CapturePreparation,
+  CaptureTargetPreview,
   ExtensionMessage,
   MessageResponse,
   SelectedElementInfo,
+  VideoBookmarkMetadata,
+  VideoCaptureMode,
+  VideoCaptureOptions,
 } from '../shared/types';
 import { analyzeElement, rectToViewportRect } from './element-analyzer';
 import { InspectorOverlay } from './overlay';
+import {
+  analyzeVideo,
+  captureTargetForMode,
+  captureTargetPreview,
+  findVideo,
+  hasPlayerControls,
+  visibleVideoRect,
+} from './video-analyzer';
+
+interface PlaybackSnapshot {
+  video: HTMLVideoElement;
+  wasPaused: boolean;
+}
 
 class InspectorController {
   private readonly overlay = new InspectorOverlay();
   private selecting = false;
   private selected: Element | null = null;
   private childHistory: Element[] = [];
+  private captureTarget: Element | null = null;
+  private captureTargetMode: VideoCaptureMode | null = null;
+  private captureChildHistory: Element[] = [];
+  private playbackSnapshots: PlaybackSnapshot[] = [];
 
   constructor() {
     document.addEventListener('pointermove', this.onPointerMove, true);
@@ -66,10 +87,19 @@ class InspectorController {
 
   private readonly refreshSelected = (): void => {
     if (this.selected?.isConnected) this.overlay.showSelected(this.selected);
+    if (this.captureTarget?.isConnected) this.overlay.showCapture(this.captureTarget);
   };
+
+  private clearCaptureTarget(): void {
+    this.captureTarget = null;
+    this.captureTargetMode = null;
+    this.captureChildHistory = [];
+    this.overlay.hideCapture();
+  }
 
   private setSelected(element: Element): SelectedElementInfo {
     this.selected = element;
+    this.clearCaptureTarget();
     this.overlay.showSelected(element);
     const info = analyzeElement(element);
     void chrome.runtime
@@ -93,13 +123,123 @@ class InspectorController {
     return this.setSelected(child);
   }
 
-  private async prepareCapture(): Promise<CapturePreparation | null> {
+  private setCaptureTarget(mode: VideoCaptureMode): CaptureTargetPreview | null {
     if (!this.selected) return null;
+    const target = captureTargetForMode(this.selected, mode);
+    if (!target) return null;
+    this.captureTarget = target;
+    this.captureTargetMode = mode;
+    this.captureChildHistory = [];
+    this.overlay.showCapture(target);
+    return captureTargetPreview(target, mode, false);
+  }
+
+  private moveCaptureTarget(direction: 'parent' | 'child'): CaptureTargetPreview | null {
+    if (!this.captureTarget || !this.captureTargetMode) return null;
+    if (direction === 'parent') {
+      const parent = this.captureTarget.parentElement;
+      if (parent) {
+        this.captureChildHistory.push(this.captureTarget);
+        this.captureTarget = parent;
+      }
+    } else {
+      const child = this.captureChildHistory.pop();
+      if (child?.isConnected) this.captureTarget = child;
+    }
+    this.overlay.showCapture(this.captureTarget);
+    return captureTargetPreview(
+      this.captureTarget,
+      this.captureTargetMode,
+      this.captureChildHistory.length > 0,
+    );
+  }
+
+  private async attemptToShowControls(target: Element, video: HTMLVideoElement): Promise<boolean> {
+    const rect = video.getBoundingClientRect();
+    const init: MouseEventInit = {
+      bubbles: true,
+      composed: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    };
+    target.dispatchEvent(new PointerEvent('pointermove', init));
+    target.dispatchEvent(new MouseEvent('mousemove', init));
+    video.dispatchEvent(new MouseEvent('mouseover', init));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return video.controls || hasPlayerControls(target);
+  }
+
+  private snapshotAndPauseVideos(target: Element): void {
+    const videos = [
+      ...(target instanceof HTMLVideoElement ? [target] : []),
+      ...target.querySelectorAll<HTMLVideoElement>('video'),
+    ].filter((video, index, all) => all.indexOf(video) === index);
+    this.playbackSnapshots = videos.map((video) => ({
+      video,
+      wasPaused: video.paused || video.ended,
+    }));
+    for (const { video, wasPaused } of this.playbackSnapshots) {
+      if (!wasPaused) video.pause();
+    }
+  }
+
+  private async restoreAfterCapture(): Promise<string[]> {
+    const snapshots = this.playbackSnapshots;
+    this.playbackSnapshots = [];
+    const warnings: string[] = [];
+    for (const { video, wasPaused } of snapshots) {
+      if (wasPaused || !video.isConnected || !video.paused) continue;
+      try {
+        await video.play();
+      } catch {
+        warnings.push(
+          '撮影後に動画の再生を自動で再開できませんでした。ページ上で再生してください。',
+        );
+      }
+    }
+    this.overlay.restore();
+    this.refreshSelected();
+    return warnings;
+  }
+
+  private async prepareCapture(options?: VideoCaptureOptions): Promise<CapturePreparation | null> {
+    if (!this.selected) return null;
+    await this.restoreAfterCapture();
+
+    const video = findVideo(this.selected);
+    let target = this.selected;
+    let videoMetadata: VideoBookmarkMetadata | null = null;
+    if (video && options) {
+      if (!this.captureTarget || this.captureTargetMode !== options.captureMode) {
+        this.setCaptureTarget(options.captureMode);
+      }
+      target = this.captureTarget ?? this.selected;
+      let controlsIncluded = video.controls || hasPlayerControls(target);
+      let captureLimitation: string | null = null;
+      if (options.includePlayerControls) {
+        controlsIncluded = await this.attemptToShowControls(target, video);
+        if (!controlsIncluded) {
+          captureLimitation =
+            'プレイヤーのコントロールを表示できなかったため、見えている動画フレームを保存しました。';
+        }
+      }
+      const currentVideo = analyzeVideo(this.selected);
+      if (options.pauseWhileCapturing) this.snapshotAndPauseVideos(this.selected);
+      if (currentVideo) {
+        videoMetadata = {
+          ...currentVideo,
+          captureMode: options.captureMode,
+          controlsIncluded,
+          captureLimitation,
+        };
+      }
+    }
+
     this.overlay.hideAll();
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
-    const rect = this.selected.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
     const left = Math.max(0, rect.left);
     const top = Math.max(0, rect.top);
     const right = Math.min(window.innerWidth, rect.right);
@@ -111,6 +251,8 @@ class InspectorController {
       devicePixelRatio: window.devicePixelRatio || 1,
       clippedToViewport:
         left !== rect.left || top !== rect.top || right !== rect.right || bottom !== rect.bottom,
+      videoVisibleRect: video ? visibleVideoRect(video) : null,
+      videoMetadata,
     };
   }
 
@@ -138,8 +280,31 @@ class InspectorController {
       sendResponse({ ok: true, data: this.selected ? analyzeElement(this.selected) : null });
       return false;
     }
+    if (message.type === 'SET_CAPTURE_TARGET') {
+      const preview = this.setCaptureTarget(message.captureMode);
+      sendResponse(
+        preview
+          ? { ok: true, data: preview }
+          : { ok: false, error: { code: 'NO_SELECTION', message: '動画要素が見つかりません。' } },
+      );
+      return false;
+    }
+    if (message.type === 'MOVE_CAPTURE_TARGET') {
+      const preview = this.moveCaptureTarget(message.direction);
+      sendResponse(
+        preview
+          ? { ok: true, data: preview }
+          : { ok: false, error: { code: 'NO_SELECTION', message: '撮影範囲がありません。' } },
+      );
+      return false;
+    }
+    if (message.type === 'CLEAR_CAPTURE_TARGET') {
+      this.clearCaptureTarget();
+      sendResponse({ ok: true, data: undefined });
+      return false;
+    }
     if (message.type === 'CAPTURE_PREPARE') {
-      void this.prepareCapture()
+      void this.prepareCapture(message.options)
         .then((capture) => {
           sendResponse(
             capture
@@ -150,22 +315,34 @@ class InspectorController {
                 },
           );
         })
-        .catch((error: unknown) => {
+        .catch(async (caught: unknown) => {
+          // A preparation error can happen after pausing playback. Always restore the
+          // page before reporting the failure to the side panel.
+          await this.restoreAfterCapture().catch(() => []);
           sendResponse({
             ok: false,
             error: {
               code: 'CAPTURE_FAILED',
-              message: error instanceof Error ? error.message : '撮影準備に失敗しました。',
+              message: caught instanceof Error ? caught.message : '撮影準備に失敗しました。',
             },
           });
         });
       return true;
     }
     if (message.type === 'CAPTURE_RESTORE') {
-      this.overlay.restore();
-      this.refreshSelected();
-      sendResponse({ ok: true, data: undefined });
-      return false;
+      void this.restoreAfterCapture()
+        .then((warnings) => sendResponse({ ok: true, data: { warnings } }))
+        .catch((caught: unknown) =>
+          sendResponse({
+            ok: false,
+            error: {
+              code: 'CAPTURE_FAILED',
+              message:
+                caught instanceof Error ? caught.message : '動画状態を復元できませんでした。',
+            },
+          }),
+        );
+      return true;
     }
     return undefined;
   };

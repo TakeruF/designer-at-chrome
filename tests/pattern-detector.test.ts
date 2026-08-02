@@ -59,6 +59,18 @@ describe('rule-based UI pattern detector', () => {
     expect(result.name).toBe('Primary Button');
   });
 
+  it('recognizes a video as a recordable frame', () => {
+    const result = detectPatternFromFeatures({
+      ...base,
+      tag: 'video',
+      width: 960,
+      height: 540,
+    });
+    expect(result.name).toBe('Video Frame');
+    expect(result.japaneseName).toBe('動画フレーム');
+    expect(result.confidence).toBe(0.99);
+  });
+
   it('recognizes a hero from structure and viewport position', () => {
     const result = detectPatternFromFeatures({
       ...base,
