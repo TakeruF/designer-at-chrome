@@ -1,5 +1,7 @@
 # UI Lens — Design Inspector
 
+[日本語](./README.md) | [English](./README.en.md) | [简体中文](./README.zh-CN.md)
+
 実際のWebサイトを見ながらUIデザインを学ぶための、ローカル完結型Chrome拡張機能です。ページ上の要素を選択すると、そのUIパターン、タイポグラフィ、色、余白、外観、レイアウト、HTML構造をChrome Side Panelで確認できます。気に入った要素はスクリーンショットとメモを付けて保存し、自分専用のUIリファレンス集として検索・閲覧できます。
 
 ## 主な機能
