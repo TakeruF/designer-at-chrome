@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [feat/chrome-extension-mvp]
+    branches: [main]
 
 permissions:
   contents: read
