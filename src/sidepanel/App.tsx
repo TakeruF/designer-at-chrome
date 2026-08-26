@@ -108,11 +108,11 @@ export function App() {
         setInspectionError(null);
       }
     };
-    const tabActivatedListener = ({ tabId }: chrome.tabs.TabActiveInfo) =>
+    const tabActivatedListener = ({ tabId }: chrome.tabs.OnActivatedInfo) =>
       void activateTabContext(tabId);
     const tabUpdatedListener = (
       _tabId: number,
-      changeInfo: chrome.tabs.TabChangeInfo,
+      changeInfo: chrome.tabs.OnUpdatedInfo,
       tab: chrome.tabs.Tab,
     ) => {
       const action = inspectionActionForTabUpdate(changeInfo, Boolean(tab.active));
