@@ -231,6 +231,7 @@ export interface ExtensionError {
 
 export type ExtensionMessage =
   | { type: 'START_SELECTION' }
+  | { type: 'STOP_SELECTION' }
   | { type: 'RESELECT_ELEMENT' }
   | { type: 'MOVE_SELECTION'; direction: 'parent' | 'child' }
   | { type: 'CLEAR_SELECTION'; tabId?: number }
@@ -241,6 +242,7 @@ export type ExtensionMessage =
   | { type: 'CAPTURE_PREPARE'; options?: VideoCaptureOptions }
   | { type: 'CAPTURE_RESTORE' }
   | { type: 'ELEMENT_SELECTED'; payload: SelectedElementInfo }
+  | { type: 'SELECTION_MODE_EXITED' }
   | { type: 'CAPTURE_AND_STORE'; bookmarkId: string; options?: VideoCaptureOptions };
 
 export type MessageResponse<T = undefined> =

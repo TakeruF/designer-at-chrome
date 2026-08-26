@@ -38,7 +38,7 @@ class InspectorController {
   constructor() {
     document.addEventListener('pointermove', this.onPointerMove, true);
     document.addEventListener('click', this.onClick, true);
-    document.addEventListener('keydown', this.onKeyDown, true);
+    window.addEventListener('keydown', this.onKeyDown, true);
     window.addEventListener('scroll', this.refreshSelected, true);
     window.addEventListener('resize', this.refreshSelected);
     chrome.runtime.onMessage.addListener(this.onMessage);
@@ -50,8 +50,16 @@ class InspectorController {
   }
 
   private stopSelection(): void {
+    const wasSelecting = this.selecting;
     this.selecting = false;
     this.overlay.hideHover();
+    if (wasSelecting) {
+      void chrome.runtime
+        .sendMessage({ type: 'SELECTION_MODE_EXITED' } satisfies ExtensionMessage)
+        .catch(() => {
+          // Selection mode also works when the side panel is closed.
+        });
+    }
   }
 
   private eventElement(event: Event): Element | null {
@@ -275,6 +283,11 @@ class InspectorController {
     if (!isExtensionMessage(message)) return undefined;
     if (message.type === 'START_SELECTION' || message.type === 'RESELECT_ELEMENT') {
       this.startSelection();
+      sendResponse({ ok: true, data: undefined });
+      return false;
+    }
+    if (message.type === 'STOP_SELECTION') {
+      this.stopSelection();
       sendResponse({ ok: true, data: undefined });
       return false;
     }
