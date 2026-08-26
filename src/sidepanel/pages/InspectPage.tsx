@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { formatMediaTime } from '../../shared/media-utils';
-import { ExtensionRuntimeError, sendRuntimeMessage } from '../../shared/messages';
+import {
+  ExtensionRuntimeError,
+  isExtensionMessage,
+  sendRuntimeMessage,
+} from '../../shared/messages';
 import { buildSelectionReproductionPrompt } from '../../shared/reproduction-prompt';
 import type { DesignBookmark, ExtensionError, SelectedElementInfo } from '../../shared/types';
 import { localizedPatternName } from '../../shared/ui-pattern-labels';
@@ -36,6 +40,7 @@ export function InspectPage({
 }) {
   const { locale, t } = useI18n();
   const [busy, setBusy] = useState(false);
+  const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [localError, setLocalError] = useState<ExtensionError | null>(null);
   const [showSave, setShowSave] = useState(false);
   const [permissionOrigin, setPermissionOrigin] = useState<string | null>(null);
@@ -53,12 +58,38 @@ export function InspectPage({
     };
   }, [visibleError?.code]);
 
+  useEffect(() => {
+    const messageListener = (message: unknown) => {
+      if (isExtensionMessage(message) && message.type === 'SELECTION_MODE_EXITED') {
+        setSelectionModeActive(false);
+      }
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+    return () => chrome.runtime.onMessage.removeListener(messageListener);
+  }, []);
+
+  useEffect(() => {
+    if (!selectionModeActive) return undefined;
+    const keydownListener = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setSelectionModeActive(false);
+      void sendRuntimeMessage<void>({ type: 'STOP_SELECTION' }).catch((caught: unknown) => {
+        setSelectionModeActive(true);
+        setLocalError(errorFrom(caught, t('error.stop')));
+      });
+    };
+    window.addEventListener('keydown', keydownListener, true);
+    return () => window.removeEventListener('keydown', keydownListener, true);
+  }, [selectionModeActive, t]);
+
   const request = async (type: 'START_SELECTION' | 'RESELECT_ELEMENT') => {
     setBusy(true);
     setLocalError(null);
     onError(null);
     try {
       await sendRuntimeMessage<void>({ type });
+      setSelectionModeActive(true);
     } catch (caught) {
       setLocalError(errorFrom(caught, t('error.start')));
     } finally {
@@ -77,6 +108,7 @@ export function InspectPage({
       }
       await onPermissionGranted();
       await sendRuntimeMessage<void>({ type: 'START_SELECTION' });
+      setSelectionModeActive(true);
     } catch (caught) {
       setLocalError(errorFrom(caught, t('error.start')));
     } finally {

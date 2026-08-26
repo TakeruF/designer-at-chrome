@@ -101,7 +101,11 @@ async function handleMessage(message: ExtensionMessage): Promise<MessageResponse
 }
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  if (!isExtensionMessage(message) || (sender.tab && message.type === 'ELEMENT_SELECTED'))
+  if (
+    !isExtensionMessage(message) ||
+    (sender.tab &&
+      (message.type === 'ELEMENT_SELECTED' || message.type === 'SELECTION_MODE_EXITED'))
+  )
     return undefined;
   void handleMessage(message).then(sendResponse);
   return true;
