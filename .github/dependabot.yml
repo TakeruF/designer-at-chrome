@@ -2,7 +2,6 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
-    target-branch: feat/chrome-extension-mvp
     schedule:
       interval: weekly
     groups:
@@ -10,9 +9,8 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
-    target-branch: feat/chrome-extension-mvp
     schedule:
       interval: weekly
     groups:
       actions:
-        patterns: ["*"]
+        patterns: ['*']
