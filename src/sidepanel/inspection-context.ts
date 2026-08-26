@@ -23,7 +23,7 @@ export type InspectionTabUpdateAction = 'none' | 'reset' | 'refresh';
 
 /** Separates full navigations from SPA URL changes so injection waits for a loaded document. */
 export function inspectionActionForTabUpdate(
-  changeInfo: Pick<chrome.tabs.TabChangeInfo, 'status' | 'url'>,
+  changeInfo: Pick<chrome.tabs.OnUpdatedInfo, 'status' | 'url'>,
   active: boolean,
 ): InspectionTabUpdateAction {
   if (!active) return 'none';
